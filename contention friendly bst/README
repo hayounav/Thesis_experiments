@@ -1,0 +1,6 @@
+This part of the repository contains our TLA+ model of the Contention-Friendly Binary Search Tree by Crain el al [1].
+
+We used TLA+ 1.7 [2].
+
+[1] Tyler Crain, Vincent Gramoli, Michel Raynal: A Fast Contention-Friendly Binary Search Tree. Parallel Process. Lett. 26(3): 1650015:1-1650015:17 (2016)
+[2] https://github.com/tlaplus/tlaplus/releases/tag/v1.7.2
