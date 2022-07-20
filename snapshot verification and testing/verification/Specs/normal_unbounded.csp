@@ -1,0 +1,21 @@
+
+Impl() = Setup(); (||| pid:{0 .. N-1} @ ReadWriter(pid));
+ReadWriter(pid) = (([] v:{0 .. MAX_V} @ Update(pid,v)) [] Scan(pid)); ReadWriter(pid);
+
+
+///////////////////////////
+// Snapshot abstract specification
+//////////////////////////
+// Shared registers for the abstract implementation
+var R[N];
+
+// the empty tau is a hack to make sure updates can interleave with scans
+// this construction saves the need for additional process-specific global variables
+<ABS-SCAN>
+
+UpdateAbs(i, v) = startUpdate.i.v -> {R[i] = v;} -> endUpdate.i.v -> Skip;
+
+Snapshot() = (||| pid:{0 .. N-1} @ ReadWriterAbs(pid));
+ReadWriterAbs(pid) = (([] v:{0 .. MAX_V} @ UpdateAbs(pid, v)) [] ScanAbs(pid)); ReadWriterAbs(pid);
+
+#assert Impl() refines Snapshot();

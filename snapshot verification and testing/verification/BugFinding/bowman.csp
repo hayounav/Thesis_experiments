@@ -1,0 +1,61 @@
+﻿/////////////////////////////////////////////////////////////////////
+/// This file contains a CSP implementation of the bounded single-snapshot algorithm
+/// presented by Bowman in 
+/// "Obstruction-free snapshot, obstruction-free consensus, and fetch-and-add modulo k" (2011) 
+///
+/// Inline comments map CSP statements to the psudeo-code statements from the paper.
+///
+/// A bug has been artificially planted in this implementation.
+/// The bug occurrs on line 55:
+///   Instead of the loop in the scan operation continuing until X == i,
+///   the loop stops too eagerly, whenrever X != \bottom
+///   This bug was suggested by Bowman in the original text
+/////////////////////////////////////////////////////////////////////
+
+///Number of processes
+#define N <NUM-PROCS>;
+////Data Domain
+#define MAX_V 1;
+/// The Bottom value
+#define BOTTOM -1;
+
+
+// The snapshot
+var A[N]:{0 .. MAX_V};
+// The synchronization variable
+var X:{BOTTOM .. N} = BOTTOM;
+// local copy for scans
+var B[N][N]:{0 .. MAX_V};
+
+// UPDATE(j,v)
+Update(j, v) = startUpdate.j.v -> 
+	// 7. X <- \bottom
+	{X = BOTTOM;} -> 
+	// 8. A[j] <- v
+	{A[j] = v;} -> 
+	endUpdate.j.v -> Skip;
+
+// SCAN fro process i
+Scan(i) = startScan.i -> 
+	// 1. do
+	ScanLoop(i);
+	
+ScanLoop(i) = 
+	// 2. X <- i
+	{X = i} -> CopyLoop(i, 0);
+
+// 3. for each k:
+CopyLoop(i, k) = if (k < N) { 
+		// 4. B[k] <- A[k]
+		{B[i][k] = A[k];} -> CopyLoop(i, k+1)
+	} else { FinishScan(i) };
+	
+FinishScan(i) = 
+	// 5. until X == i
+	if (X != BOTTOM) { // BUG!
+		// return B
+		endScan.i<SCAN-RESPONSE> -> Skip 
+	} else { ScanLoop(i) };
+
+Setup() = Skip;
+

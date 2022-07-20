@@ -1,0 +1,22 @@
+#define MAX_OPS <LIMIT-RUN>;
+
+Impl() = Setup(); (||| pid:{0 .. N-1} @ ReadWriter(pid, 0));
+ReadWriter(pid, i) = [i < MAX_OPS]((([] v:{0 .. MAX_V} @ Update(pid,v)) [] Scan(pid)); ReadWriter(pid, i+1));
+
+
+///////////////////////////
+// Snapshot abstract specification
+//////////////////////////
+// Shared registers for the abstract implementation
+var R[N];
+
+// the empty tau is a hack to make sure updates can interleave with scans
+// this construction saves the need for additional process-specific global variables
+<ABS-SCAN>
+
+UpdateAbs(i, v) = startUpdate.i.v -> {R[i] = v;} -> endUpdate.i.v -> Skip;
+
+Snapshot() = (||| pid:{0 .. N-1} @ ReadWriterAbs(pid, 0));
+ReadWriterAbs(pid, i) = [i < MAX_OPS]((([] v:{0 .. MAX_V} @ UpdateAbs(pid, v)) [] ScanAbs(pid)); ReadWriterAbs(pid, i+1));
+
+#assert Impl() refines Snapshot();

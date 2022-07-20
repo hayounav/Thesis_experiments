@@ -1,0 +1,38 @@
+Supporting material for submission #38: Polynomial Verification and Linear Testing of Implementations of the Snapshot Data Structure
+=======================================
+
+This package contains both the raw results of our *verification and bug finding* experiments, as well as the code needed to reproduce these experiments.
+
+---
+
+
+Table of Contents
+=================
+1. Package Contents
+2. Code and Execution Instructions
+3. Platform and External Dependencies
+
+
+1. Package contents
+===================
+This package contains 5 directories and 2 files:
+- BugFinding - contains the buggy snapshot implementations, which are used for the bug-finding experiments. The implementations are written using PAT's CSP syntax. See comments in each individual file for algorithm and bug details.
+- Process Analysis Toolkit 3.5.1 - contains the PAT tool used for the verification and bug finding experiments (see [Chapter 3](#chapter3)).
+- Specs - contains the various abstract specifications used for the different experiment configurations. Each filename describes the configurations for which the abstract specification is used.
+- Verification - contains the correct snapshot implementations, which are used for the verification experiments. The implementations are written using PAT's CSP syntax. See comments in each individual file for algorithm details.
+results.csv - contains the tabulation of the experiment results.
+run.sh - is the main script for running and tabulating the results (see [Chapter 2](#chapter2)).
+
+
+2. Code and Execution Instructions {#chapter3}
+==================================
+- run.sh - The primary bash script for managing and running the experiments.
+	+ For instructions on how to run the script, run it with the help flag: `./run.sh -h` or `./run.sh -help`
+	+ The script depends on PAT (see Chapter 3). To configure the location of the PAT executable, modify the variable `PAT_EXECUTABLE` on line 37. Default value is `"./Process Analysis Toolkit 3.5.1/PAT3.Console.exe"`.
+
+
+3. Platform and External Dependencies {#chapter3}
+=====================================
+- 64-bit Ubuntu 20.04.2 on WSL2
+
+This package depends on the PAT model checker version 3.5.1. To obtain a copy of the tool, see <https://pat.comp.nus.edu.sg/>.

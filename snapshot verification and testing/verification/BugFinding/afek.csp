@@ -1,0 +1,158 @@
+﻿/////////////////////////////////////////////////////////////////////
+/// This file contains a CSP implementation of the bounded single-snapshot algorithm
+/// presented by Afek et al. in "Atomic Snapshots of Shared Memory" (1993)
+///
+/// Inline comments map CSP statements to the psudeo-code statements from the paper.
+///
+/// A bug has been artificially planted in this implementation.
+/// The bug occurrs on line 63:
+///   As part of an update operation, the updater should collect and
+///   negate handshake bits from other processes. Here, we "forget" the
+///   negation part.
+/////////////////////////////////////////////////////////////////////
+
+///Number of processes
+ #define N <NUM-PROCS>;
+ ////Data Domain
+ #define MAX_V 1;
+
+/// storage for the output of "internal" scans
+var V[N][N];
+
+/// scanner handshake vectors
+var q[N][N];
+
+/// local writer handshake vectors
+var f[N][N];
+
+/// local register caches for scanners
+/// each process has a register vector
+/// the A copy only makes use of toggle bit and the handshakes, so save space
+var a[N][N][1+N];
+var b[N][N][2+N+N];
+
+/// used to check for differences between A and B in scans
+var moved[N][N];
+
+/// snapshot
+/// each register is of size 2+N+N: value, toggle, N handshake bits, view of the snapshot
+var SS[N][2+N+N];
+
+// procedure update_i(value)
+Update(i, v) = startUpdate.i.v -> 
+	// 0: for j=1 to n do f_j := !q_{j_i} od;
+	UpdateHandshake(i, 0);
+	// 1: s := scan_i;
+	IntrenalScan(i);
+	// 2: r_i := (value, f, !toggle(r_i), s);
+	{
+		SS[i][0] = v; //value
+		SS[i][1] = 1-SS[i][1]; //!toggle
+		var c = 0;
+		while (c < N) { // f
+			SS[i][2+c] = f[i][c];
+			c++;
+		}
+		c = 0;
+		while (c < N) { // s
+			SS[i][1+N+c] = V[i][c];
+			c++;
+		}
+	} -> Skip;
+	endUpdate.i.v -> Skip;
+UpdateHandshake(i, j) = if (j < N) {{f[i][j] = q[j][i];} -> UpdateHandshake(i, j+1)} else {Skip}; // BUG!
+
+// procedure scan_i
+Scan(pid) = startScan.pid -> IntrenalScan(pid); endScan.pid<SCAN-RESPONSE> -> Skip;
+
+// The actual scanning behavior is seperated from the scan procedure, since update calls scan, 
+// but we don't want update operations to generate scan invokation and response actions
+IntrenalScan(pid) = 
+// 0: for j=1 to n do moved_j := 0 od;
+{
+	var idx = 0;
+	while (idx < N) {
+		moved[pid][idx] = 0;
+		idx++;
+	}
+} -> MainScanLoop(pid);
+
+// The scan procedure repeats the following loop "forever" (see the paper for details):
+// 1. copy the relevant handshake bits from other processes
+// 2. perform a double collect
+// 3. check if any other process "moved" during the double collect
+MainScanLoop(pid) = CopyHandshake(pid, 0); CopyAs(pid, 0); CopyBs(pid, 0); CompareAB(pid, 0);
+
+// 0.5: for j=1 to n do q_{i,j} := p_{j,i}(r_j) od;
+CopyHandshake(pid, j) = if (j < N) { {q[pid][j] = SS[j][1+pid];} -> CopyHandshake(pid, j+1) } else { Skip };
+
+// 1: a := collect
+CopyAs(pid, c1) = if (c1 < N) {
+	{
+		var c2 = 0;
+		while (c2 < N) {
+			a[pid][c1][c2] = SS[c1][1+c2];
+			c2++;
+		}
+	} -> CopyAs(pid, c1+1)} else {Skip};
+	
+// 2: b := collect
+CopyBs(pid, c1) = if (c1 < N) {
+	{
+		var c2 = 0;
+		while (c2 < 1+N+N) {
+			b[pid][c1][c2] = SS[c1][c2];
+			c2++;
+		}
+	} -> CopyBs(pid, c1+1)} else {Skip};
+
+// 3: if (\forall j \in {1..n}) ...
+CompareAB(pid, j) = if (j < N) {
+		if ((a[pid][j][pid] != b[pid][j][1+pid]) || (a[pid][j][pid] != q[pid][j]) || (a[pid][j][0] != b[pid][j][1])) {
+			// else somebody moved, so...
+			CountMovement(pid, 0)
+		} else {
+			CompareAB(pid, j+1)
+		}
+	} else { // ... (p_{j,i}(a_j) = p_{j,i}(b_j) = q_{i,j})
+		// Nobody Moved
+		{
+			// 4: return (value(b_1), ..., value(b_n));
+			var c = 0;
+			while (c < N) {
+				V[pid][c] = b[pid][c][0];
+				c++;
+			}
+		} -> Skip
+	};
+
+// somebody moved
+// 5: for j=1 to n do
+CountMovement(pid, j) = if (j < N) {
+		// 6: if p_{j_i}(a_j) != q_{i,j} or p_{j_i}(b_j) != q_{i,j} or toggle(a_j) != toggle(b_j) then 
+		if ((a[pid][j][pid] != q[pid][j]) || (b[pid][j][1+pid] != q[pid][j]) || (a[pid][j][0] != b[pid][j][1])) {
+			// 7: if moved_j = 1 then
+			if (moved[pid][j] == 1) {
+				// 8: return (view(b_j));
+				{
+					var c = 0;
+					while (c < N) {
+						V[pid][c] = b[pid][j][1+N+c];
+						c++;
+					}
+				} -> Skip
+			} else {
+				// 9: else moved_j := moved_j + 1;
+				{moved[pid][j]++;} -> CountMovement(pid, j+1)
+			}
+		} else {
+			// od;
+			CountMovement(pid, j+1)
+		}
+	} else {
+		// 10: goto line 0.5
+		MainScanLoop(pid)
+	};
+
+Setup() = Skip;
+

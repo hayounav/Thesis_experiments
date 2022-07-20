@@ -1,0 +1,10 @@
+Exception in thread "Thread-0" java.lang.OutOfMemoryError: Java heap space
+	at java.base/java.util.HashMap.resize(HashMap.java:699)
+	at java.base/java.util.HashMap.putVal(HashMap.java:658)
+	at java.base/java.util.HashMap.put(HashMap.java:607)
+	at java.base/java.util.HashSet.add(HashSet.java:220)
+	at ox.cads.testing.DFSGraphJITLinTester.solve(DFSGraphJITLinTester.scala:129)
+	at ox.cads.testing.CompetitionSolver.ox$cads$testing$CompetitionSolver$$thread1$1(CompetitionSolver.scala:15)
+	at ox.cads.testing.CompetitionSolver$$anonfun$solve$1.apply$mcV$sp(CompetitionSolver.scala:22)
+	at ox.cads.util.ThreadUtil$$anon$1.run(ThreadUtil.scala:8)
+	at java.base/java.lang.Thread.run(Thread.java:829)

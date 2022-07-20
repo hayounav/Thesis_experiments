@@ -1,0 +1,86 @@
+Error found
+0: 2 invokes startUpdate!2,0
+1: 0 invokes startScan!0
+2: 0 returns ArraySeq(0, 0, 0)
+3: 1 invokes startScan!1
+4: 0 invokes startUpdate!0,0
+5: 1 returns ArraySeq(0, 0, 0)
+6: 0 returns ()
+7: 0 invokes startScan!0
+8: 0 returns ArraySeq(0, 0, 0)
+9: 2 returns ()
+10: 0 invokes startUpdate!0,1
+11: 1 invokes startScan!1
+12: 2 invokes startUpdate!2,0
+13: 0 returns ()
+14: 1 returns ArraySeq(0, 0, 0)
+15: 1 invokes startScan!1
+16: 2 returns ()
+17: 2 invokes startScan!2
+18: 1 returns ArraySeq(1, 0, 0)
+19: 1 invokes startUpdate!1,1
+20: 0 invokes startUpdate!0,1
+21: 2 returns ArraySeq(1, 0, 0)
+22: 0 returns ()
+23: 2 invokes startScan!2
+24: 1 returns ()
+25: 0 invokes startScan!0
+26: 2 returns ArraySeq(1, 1, 0)
+27: 2 invokes startUpdate!2,0
+28: 0 returns ArraySeq(0, 0, 0)
+-- Previous event not linearized
+-- Allowed return values: ArraySeq(1, 1, 0)
+29: 2 returns ()
+30: 2 invokes startUpdate!2,0
+31: 1 invokes startUpdate!1,1
+32: 0 invokes startUpdate!0,1
+33: 2 returns ()
+34: 2 invokes startScan!2
+35: 0 returns ()
+36: 1 returns ()
+37: 1 invokes startUpdate!1,1
+38: 2 returns ArraySeq(1, 1, 0)
+39: 0 invokes startUpdate!0,1
+Error found
+40: 1 returns ()
+41: 2 invokes startUpdate!2,0
+42: 0 returns ()
+43: 1 invokes startUpdate!1,1
+44: 1 returns ()
+45: 1 invokes startScan!1
+46: 1 returns ArraySeq(1, 0, 0)
+47: 1 invokes startUpdate!1,1
+48: 1 returns ()
+49: 2 returns ()
+2 invokes startUpdate!2,0
+0 invokes startScan!0
+0 returns ArraySeq(0, 0, 0)
+1 invokes startScan!1
+0 invokes startUpdate!0,0
+1 returns ArraySeq(0, 0, 0)
+0 returns ()
+0 invokes startScan!0
+0 returns ArraySeq(0, 0, 0)
+2 returns ()
+0 invokes startUpdate!0,1
+1 invokes startScan!1
+2 invokes startUpdate!2,0
+0 returns ()
+1 returns ArraySeq(0, 0, 0)
+1 invokes startScan!1
+2 returns ()
+2 invokes startScan!2
+1 returns ArraySeq(1, 0, 0)
+1 invokes startUpdate!1,1
+0 invokes startUpdate!0,1
+2 returns ArraySeq(1, 0, 0)
+0 returns ()
+2 invokes startScan!2
+1 returns ()
+0 invokes startScan!0
+2 returns ArraySeq(1, 1, 0)
+2 invokes startUpdate!2,0
+0 returns ArraySeq(0, 0, 0)
+-- Previous event not linearized
+-- Allowed return values: ArraySeq(1, 1, 0)
+res: -2	data processing time: 0.2095578	solve time: 0.2752749	total time: 0.4848327	Memory used: 320.0

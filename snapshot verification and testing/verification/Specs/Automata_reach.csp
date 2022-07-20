@@ -1,0 +1,71 @@
+﻿// Helper event generators
+StartScan(pid) = startScan.pid -> Skip;
+EndScanEqual(pid) = (endScan.pid.0.0 -> Skip) [] (endScan.pid.1.1 -> Skip);
+EndScanNotEqual(pid) = (endScan.pid.1.0 -> Skip) [] (endScan.pid.0.1 -> Skip);
+EndScanNot00(pid) = (endScan.pid.0.1 -> Skip) [] (endScan.pid.1.1 -> Skip) [] (endScan.pid.1.0 -> Skip);
+EndScan1X(pid) = (endScan.pid.1.0 -> Skip) [] (endScan.pid.1.1 -> Skip);
+EndScanNot1X(pid) = (endScan.pid.0.0 -> Skip) [] (endScan.pid.0.1 -> Skip);
+EndScanX1(pid) = (endScan.pid.0.1 -> Skip) [] (endScan.pid.1.1 -> Skip);
+EndScanNotX1(pid) = (endScan.pid.0.0 -> Skip) [] (endScan.pid.1.0 -> Skip);
+EndScanNot01(pid) = (endScan.pid.0.0 -> Skip) [] (endScan.pid.1.1 -> Skip) [] (endScan.pid.1.0 -> Skip);
+EndScanNot11(pid) = (endScan.pid.0.1 -> Skip) [] (endScan.pid.0.0 -> Skip) [] (endScan.pid.1.0 -> Skip);
+EndScanNot10(pid) = (endScan.pid.0.0 -> Skip) [] (endScan.pid.1.1 -> Skip) [] (endScan.pid.0.1 -> Skip);
+EndAnyScan(pid) = (endScan.pid.0.0 -> Skip) [] (endScan.pid.0.1 -> Skip) [] (endScan.pid.1.0 -> Skip) [] (endScan.pid.1.1 -> Skip);
+
+var violation : {0 .. 1} = 0;
+#define goal (violation != 0);
+
+Property1() = P1q0();
+P1q0() = [] pid:{0 .. N-1} @ ((endScan.pid.0.1 -> P1q1()) [] (endScan.pid.1.0 -> P1q2()));
+P1q1() = [] pid:{0 .. N-1} @ ((endScan.pid.1.0 -> {violation = 1} -> Skip) [] (endScan.pid.0.1 -> P1q1()));
+P1q2() = [] pid:{0 .. N-1} @ ((endScan.pid.0.1 -> {violation = 1} -> Skip) [] (endScan.pid.1.0 -> P1q2()));
+
+Property2() = P2q0();
+P2q0() = [] pid:{0 .. N-1} @ ((EndScanNotEqual(pid); P2q1()) [] (endScan.pid.1.1 -> P2q2()) [] (startScan.pid -> P2q0()));
+P2q1() = [] pid:{0 .. N-1} @ ((startScan.pid -> P2q3(pid)) [] (EndAnyScan(pid); P2q1()));
+P2q2() = [] pid:{0 .. N-1} @ ((startScan.pid -> P2q4(pid)) [] (EndAnyScan(pid); P2q2()));
+P2q3(pid) = (endScan.pid.0.0 -> {violation = 1} -> Skip) [] ([] i:{0 .. N-1} @ ((EndScanNot00(i); P2q3(pid)) [] (StartScan(i); P2q3(pid))));
+P2q4(pid) = (EndScanNot11(pid); {violation = 1} -> Skip) [] ([] i:{0 .. N-1} @ ((endScan.i.1.1 -> P2q4(pid)) [] (StartScan(i); P2q4(pid))));
+
+IntervalI() = Iq0();
+Iq0() = ([] pid:{0 .. N-1} @ ((EndScan1X(pid); {violation = 1} -> Skip) [] (startScan.pid -> Iq0()))) [] (startUpdate.0.1 -> Iq1()) ;
+Iq1() = ([] pid:{0 .. N-1} @ EndScan1X(pid); Iq1()) [] (startUpdate.0.1 -> Iq1()) [] (endUpdate.0.1-> Iq2());
+Iq2() = ([] pid:{0 .. N-1} @ (startScan.pid -> Iq3(pid))) [] ([] pid:{0 .. N-1} @ EndScan1X(pid); Iq2()) [] (startUpdate.0.1 -> Iq2()) [] (endUpdate.0.1-> Iq2());
+Iq3(pid) = (EndScanNot1X(pid); {violation = 1} -> Skip) [] ([] i:{0 .. N-1} @ (EndScan1X(i); Iq3(pid)) [] (startScan.i -> Iq3(pid))) [] (startUpdate.0.1 -> Iq3(pid)) [] (endUpdate.0.1-> Iq3(pid));
+
+IntervalJ() = Jq0();
+Jq0() = ([] pid:{0 .. N-1} @ ((EndScanX1(pid); {violation = 1} -> Skip) [] (startScan.pid -> Jq0()))) [] (startUpdate.1.1 -> Jq1()) ;
+Jq1() = ([] pid:{0 .. N-1} @ EndScanX1(pid); Jq1()) [] (startUpdate.1.1 -> Jq1()) [] (endUpdate.1.1 -> Jq2());
+Jq2() = ([] pid:{0 .. N-1} @ (startScan.pid -> Jq3(pid))) [] ([] pid:{0 .. N-1} @ EndScanX1(pid); Jq2()) [] (startUpdate.1.1 -> Jq2()) [] (endUpdate.1.1-> Jq2());
+Jq3(pid) = (EndScanNotX1(pid); {violation = 1} -> Skip) [] ([] i:{0 .. N-1} @ (EndScanX1(i); Jq3(pid)) [] (startScan.i -> Jq3(pid))) [] (startUpdate.1.1 -> Jq3(pid)) [] (endUpdate.1.1-> Jq3(pid));
+
+AdmissiblePair() = APq0();
+APq0() = (startUpdate.0.1 -> APq1()) [] (startUpdate.1.1 -> APq2()) [] ([] pid:{0 .. N-1} @ (EndScanNotEqual(pid); {violation = 1} -> Skip));
+APq1() = (startUpdate.1.1 -> Skip) [] (endUpdate.0.1 -> APq3()) [] ([] pid : {0 .. N-1} @ ((endScan.pid.0.1 -> {violation = 1} -> Skip) [] (endScan.pid.1.0 -> APq1())));
+APq2() = (startUpdate.0.1 -> Skip) [] (endUpdate.1.1 -> APq4()) [] ([] pid : {0 .. N-1} @ ((endScan.pid.1.0 -> {violation = 1} -> Skip) [] (endScan.pid.0.1 -> APq2())));
+APq3() = ([] pid:{0 .. N-1} @ ((endScan.pid.0.1 -> {violation = 1} -> Skip) [] (endScan.pid.1.0 -> APq3()))) [] (startUpdate.0.1 -> APq3()) [] (startUpdate.1.1 -> Skip) [] (endUpdate.0.1 -> APq3()) [] (endUpdate.1.1 -> APq3());
+APq4() = ([] pid:{0 .. N-1} @ ((endScan.pid.1.0 -> {violation = 1} -> Skip) [] (endScan.pid.0.1 -> APq4()))) [] (startUpdate.0.1 -> Skip) [] (startUpdate.1.1 -> APq4()) [] (endUpdate.0.1 -> APq4()) [] (endUpdate.1.1 -> APq4());
+
+
+
+#alphabet Impl {pid1:{0 .. N-1}; v1:{0 .. 1} @ startUpdate.pid1.v1, pid2:{0 .. N-1}; v2:{0 .. 1} @ endUpdate.pid2.v2, pid3:{0 .. N-1} @ startScan.pid3, pid4:{0 .. N-1}; v3:{0 .. 1}; v4:{0 .. 1} @ endScan.pid4.v3.v4};
+
+Verify1() = Impl() || Property1();
+Verify2() = Impl() || Property2();
+VerifyI() = Impl() || IntervalI();
+VerifyJ() = Impl() || IntervalJ();
+VerifyAP() = Impl() || AdmissiblePair();
+//Verify3() =  VerifyI() [] VerifyJ() [] VerifyAP();
+//Verify3() = VerifyI() ||| VerifyJ() ||| VerifyAP();
+//Verifyall() = Impl() || (Property1() [] Property2() [] (IntervalI() [] IntervalJ() [] AdmissiblePair()));
+//Verifyall() = Impl() || Property1() || Property2() || IntervalI() || IntervalJ() || AdmissiblePair();
+//Verifyall() = Verify1() [] Verify2() [] Verify3();
+//Verifyall() = Verify1() ||| Verify2() ||| Verify3();
+
+//#assert Verify1() reaches goal;
+//#assert Verify2() reaches goal;
+//#assert VerifyI() reaches goal;
+//#assert VerifyJ() reaches goal;
+//#assert VerifyAP() reaches goal;
+//#assert Verify3() reaches goal;
+//#assert Verifyall() reaches goal;

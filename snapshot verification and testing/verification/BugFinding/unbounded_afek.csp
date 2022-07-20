@@ -1,0 +1,149 @@
+﻿/////////////////////////////////////////////////////////////////////
+/// This file contains a CSP implementation of the bounded single-snapshot algorithm
+/// presented by Afek et al. in 
+/// "Atomic Snapshots of Shared Memory" (1993) 
+///
+/// Inline comments map CSP statements to the psudeo-code statements from the paper.
+///
+/// A bug has been artificially planted in this implementation.
+/// The bug occurs on line 50:
+///   The algorithm relies on an unbounded counter (seq) to coordinated between
+///   concurrent executions of scan and update operations. This is done by the
+///   counter being incremented by each update operation. Here, we "forget" to
+///   increment the counter.
+/////////////////////////////////////////////////////////////////////
+
+///Number of processes
+ #define N <NUM-PROCS>;
+ ///BOTTOM value
+ #define BOTTOM -1;
+ ////Data Domain
+ #define MAX_V 1;
+ 
+/// storage for the output of "internal" scans
+var V[N][N];
+
+/// local register caches for scanners
+/// each process has a register vector
+/// the A copy only makes use of the sequence number, so save space
+var a[N][N];
+var b[N][N][1+1+N];
+
+/// used to check for differences between A and B in scans
+var moved[N][N];
+
+////////////////////////
+/// Shared Registers ///
+////////////////////////
+// Unbounded Sequence number
+var seq = 0;
+/// snapshot
+/// each register is of size 1+1+N: value, sequence number, view of the snapshot
+var SS[N][1+1+N];
+
+// procedure update_i(value)
+Update(i, v) = startUpdate.i.v -> 
+	// 1: s := scan_i;
+	IntrenalScan(i);
+	// 2: r_i := (value, seq_i+1, s);
+	{
+		// BUG! seq was not incremented before being stored
+		SS[i][0] = v; // value
+		SS[i][1] = seq; // seq+1
+		var c = 0;
+		while (c < N) { // s
+			SS[i][2+c] = V[i][c];
+			c++;
+		}
+	} -> Skip;
+	endUpdate.i.v -> Skip;
+
+// procedure scan_i
+Scan(pid) = startScan.pid -> IntrenalScan(pid); endScan.pid<SCAN-RESPONSE> -> Skip;
+
+// The actual scanning behavior is seperated from the scan procedure, since update calls scan, 
+// but we don't want update operations to generate scan invokation and response actions
+IntrenalScan(pid) = 
+// 0: for j=1 to n do moved_j := 0 od;
+{
+	var idx = 0;
+	while (idx < N) {
+		moved[pid][idx] = 0;
+		idx++;
+	}
+} -> MainScanLoop(pid);
+
+// The scan procedure repeats the following loop "forever" (see the paper for details):
+// 1. copy the relevant handshake bits from other processes
+// 2. perform a double collect
+// 3. check if any other process "moved" during the double collect
+MainScanLoop(pid) = CopyAs(pid, 0); CopyBs(pid, 0); CompareAB(pid, 0);
+
+// 1: a := collect
+CopyAs(pid, c1) = ifa (c1 < N) {
+	{
+		a[pid][c1] = SS[c1][1]; // the sequence number is in the second cell of the snapshot
+		
+	} -> CopyAs(pid, c1+1)} else {Skip};
+	
+// 2: b := collect
+CopyBs(pid, c1) = ifa (c1 < N) {
+	{
+		var c2 = 0;
+		while (c2 < 1+1+N) {
+			b[pid][c1][c2] = SS[c1][c2];
+			c2++;
+		}
+	} -> CopyBs(pid, c1+1)} else {Skip};
+
+// 3: if (\forall j \in {1..n}) ...
+CompareAB(pid, j) = ifa (j < N) {
+		if ((a[pid][j] != b[pid][j][1])) {
+			// else somebody moved, so...
+			CountMovement(pid, 0)
+		} else {
+			CompareAB(pid, j+1)
+		}
+	} else { // ... (seq(a_j) = seq(b_j)) then
+		// Nobody Moved
+		// 4: return (value(b_1), ..., value(b_n));
+		{
+			var c = 0;
+			while (c < N) {
+				V[pid][c] = b[pid][c][0];
+				c++;
+			}
+		} -> Skip
+	};
+
+// somebody moved
+// 5: for j=1 to n do
+CountMovement(pid, j) = ifa (j < N) {
+		// 6: if seq(a_j) != seq(b_j) then
+		if (a[pid][j] != b[pid][j][1]) {
+			// 7: if moved_j = 1 then
+			if (moved[pid][j] == 1) {
+				// Pj moved once before
+				{
+					// 8: return (view(b_j));
+					var c = 0;
+					while (c < N) {
+						V[pid][c] = b[pid][j][1+1+c];
+						c++;
+					}
+				} -> Skip
+			} else {
+				// 9: else moved_j := moved_j + 1;
+				{moved[pid][j]++;} -> CountMovement(pid, j+1)
+			}
+		} else {
+			// od;
+			CountMovement(pid, j+1)
+		}
+	} else {
+		// 10: goto line 1
+		MainScanLoop(pid)
+	};
+
+Setup() = Skip;
+

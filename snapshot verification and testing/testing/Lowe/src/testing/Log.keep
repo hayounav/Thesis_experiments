@@ -1,0 +1,75 @@
+package ox.cads.testing
+
+/** Operations related to logging.  Used by the WG, DFS and Competition 
+  * Linearizability Testers.
+  * @tparam S the type of the sequential specification object
+  * @tparam C the type of the concurrent object
+  * @param invocs the number of invocations to be logged
+  * @param concObj the concurrent object.
+  */
+class Log[S,C](invocs: Int, concObj: C){
+  /** Class of events, "ev" in the Wing & Gong paper. */
+  class Event{
+    /** The next node in the linked list. */
+    var next: Event = null
+
+    /** The previous node in the linked list. */
+    var prev: Event = null
+  } 
+
+  /** Event of thread t invoking an operation that has effect op.
+    * @tparam A the type of the result of the operation.
+    * @tparam B the type of the return of the operation on the sequential
+    * object; this will be A for the WG tester, and (A,S) for the DFS tester.
+    */
+  case class InvokeEvent[A,B](val t: Int, val msg: String, val op: S => B)  
+  extends Event{
+    /** The corresponding ReturnEvent. */
+    var ret: ReturnEvent[A] = null
+    override def toString = t+" invokes "+msg
+  }
+
+  /** Event of a thread returning from an operation with result result */
+  case class ReturnEvent[A](val t: Int, val result: A) extends Event{
+    override def toString = t+" returns "+result
+
+    /** Sequence number of this relative to other ReturnEvents. */
+    var index = 0 
+
+    /** List of values that the sequential object allowed. */
+    var results = List[A]()
+
+    /** Compare this event's result with seqResult, returning true iff equal.
+      * if equal, update results. */
+    def compareResult(seqResult: A) : Boolean = {
+      if(seqResult == result) true 
+      else{
+	if(!results.contains(seqResult)) results ::= seqResult
+	false 
+      }
+    }
+  }
+
+  // logged events are stored in the following
+  private val inQueue = new ox.cads.collection.BoundedBuffer[Event](2*invocs)
+
+  /** Log that thread t performs operation described by msg.
+    * @tparam A the type of the result of the operation.
+    * @tparam B the type of the return of the operation on the sequential
+    * object; this will be A for the WG tester, and (A,S) for the DFS tester.
+    * @param op the operation on the concurrent datatype
+    * @param seqOp  the corresponding operation on the sequential datatype */
+  protected def log1[A,B](t: Int, concOp: C => A, msg: String, seqOp: S => B) 
+  = {
+    val e = InvokeEvent[A,B](t, msg, seqOp); inQueue.add(e)
+    // val e = logInvoke(t, msg, seqOp)
+    val result = concOp(concObj)
+    // logReturn(t, result, e)
+    val e1 = new ReturnEvent[A](t, result); inQueue.add(e1); e.ret = e1
+  }
+  // Note, this is called log1, rather than log, since
+  // DFSLinearizabilityTester must export an operation log.
+
+  /** Get the contents of the log */
+  def getLog : Array[Event] = inQueue.getAll
+}

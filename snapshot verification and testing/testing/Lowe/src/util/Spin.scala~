@@ -1,0 +1,10 @@
+/** An object that will just spin for a certain amount of time. */
+
+object Spin{
+
+  def apply(n: Long) = {
+    @volatile var count = 0
+    while(count < n) count += 1
+  }
+
+}

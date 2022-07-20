@@ -1,0 +1,159 @@
+JIT Graph Search giving up
+2021-08-12 19:45:35
+Full thread dump OpenJDK 64-Bit Server VM (11.0.11+9-Ubuntu-0ubuntu2.20.04 mixed mode, sharing):
+
+Threads class SMR info:
+_java_thread_list=0x00007f700c008940, length=10, elements={
+0x00007f70c4016800, 0x00007f70c40f3800, 0x00007f70c40f5800, 0x00007f70c40fd800,
+0x00007f70c40ff800, 0x00007f70c4101800, 0x00007f70c4103800, 0x00007f70c4105800,
+0x00007f70c4141000, 0x00007f70c4c5f800
+}
+
+"main" #1 prio=5 os_prio=0 cpu=5551.26ms elapsed=464.99s tid=0x00007f70c4016800 nid=0x33bb in Object.wait()  [0x00007f70ca48e000]
+   java.lang.Thread.State: WAITING (on object monitor)
+	at java.lang.Object.wait(java.base@11.0.11/Native Method)
+	- waiting on <0x000000030403a198> (a java.lang.Thread)
+	at java.lang.Thread.join(java.base@11.0.11/Thread.java:1300)
+	- waiting to re-lock in wait() <0x000000030403a198> (a java.lang.Thread)
+	at java.lang.Thread.join(java.base@11.0.11/Thread.java:1375)
+	at ox.cads.util.ThreadUtil$$anonfun$runParallel$2.apply(ThreadUtil.scala:31)
+	at ox.cads.util.ThreadUtil$$anonfun$runParallel$2.apply(ThreadUtil.scala:31)
+	at scala.collection.IndexedSeqOptimized$class.foreach(IndexedSeqOptimized.scala:33)
+	at scala.collection.mutable.ArrayOps$ofRef.foreach(ArrayOps.scala:186)
+	at ox.cads.util.ThreadUtil$.runParallel(ThreadUtil.scala:31)
+	at ox.cads.testing.CompetitionSolver.solve(CompetitionSolver.scala:22)
+	at Main$.main(SnapTest.scala:96)
+	at Main.main(SnapTest.scala)
+	at jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(java.base@11.0.11/Native Method)
+	at jdk.internal.reflect.NativeMethodAccessorImpl.invoke(java.base@11.0.11/NativeMethodAccessorImpl.java:62)
+	at jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(java.base@11.0.11/DelegatingMethodAccessorImpl.java:43)
+	at java.lang.reflect.Method.invoke(java.base@11.0.11/Method.java:566)
+	at scala.reflect.internal.util.ScalaClassLoader$$anonfun$run$1.apply(ScalaClassLoader.scala:70)
+	at scala.reflect.internal.util.ScalaClassLoader$class.asContext(ScalaClassLoader.scala:31)
+	at scala.reflect.internal.util.ScalaClassLoader$URLClassLoader.asContext(ScalaClassLoader.scala:101)
+	at scala.reflect.internal.util.ScalaClassLoader$class.run(ScalaClassLoader.scala:70)
+	at scala.reflect.internal.util.ScalaClassLoader$URLClassLoader.run(ScalaClassLoader.scala:101)
+	at scala.tools.nsc.CommonRunner$class.run(ObjectRunner.scala:22)
+	at scala.tools.nsc.ObjectRunner$.run(ObjectRunner.scala:39)
+	at scala.tools.nsc.CommonRunner$class.runAndCatch(ObjectRunner.scala:29)
+	at scala.tools.nsc.ObjectRunner$.runAndCatch(ObjectRunner.scala:39)
+	at scala.tools.nsc.ScriptRunner.scala$tools$nsc$ScriptRunner$$runCompiled(ScriptRunner.scala:187)
+	at scala.tools.nsc.ScriptRunner$$anonfun$runScript$1.apply(ScriptRunner.scala:204)
+	at scala.tools.nsc.ScriptRunner$$anonfun$runScript$1.apply(ScriptRunner.scala:204)
+	at scala.tools.nsc.ScriptRunner$$anonfun$withCompiledScript$1$$anonfun$apply$mcZ$sp$1.apply(ScriptRunner.scala:173)
+	at scala.tools.nsc.ScriptRunner$$anonfun$withCompiledScript$1.apply$mcZ$sp(ScriptRunner.scala:173)
+	at scala.tools.nsc.ScriptRunner$$anonfun$withCompiledScript$1.apply(ScriptRunner.scala:141)
+	at scala.tools.nsc.ScriptRunner$$anonfun$withCompiledScript$1.apply(ScriptRunner.scala:141)
+	at scala.tools.nsc.util.package$.trackingThreads(package.scala:43)
+	at scala.tools.nsc.util.package$.waitingForThreads(package.scala:27)
+	at scala.tools.nsc.ScriptRunner.withCompiledScript(ScriptRunner.scala:140)
+	at scala.tools.nsc.ScriptRunner.runScript(ScriptRunner.scala:204)
+	at scala.tools.nsc.ScriptRunner.runScriptAndCatch(ScriptRunner.scala:217)
+	at scala.tools.nsc.MainGenericRunner.runTarget$1(MainGenericRunner.scala:67)
+	at scala.tools.nsc.MainGenericRunner.run$1(MainGenericRunner.scala:87)
+	at scala.tools.nsc.MainGenericRunner.process(MainGenericRunner.scala:98)
+	at scala.tools.nsc.MainGenericRunner$.main(MainGenericRunner.scala:103)
+	at scala.tools.nsc.MainGenericRunner.main(MainGenericRunner.scala)
+
+"Reference Handler" #2 daemon prio=10 os_prio=0 cpu=5.48ms elapsed=464.99s tid=0x00007f70c40f3800 nid=0x33c2 waiting on condition  [0x00007f70ac774000]
+   java.lang.Thread.State: RUNNABLE
+	at java.lang.ref.Reference.waitForReferencePendingList(java.base@11.0.11/Native Method)
+	at java.lang.ref.Reference.processPendingReferences(java.base@11.0.11/Reference.java:241)
+	at java.lang.ref.Reference$ReferenceHandler.run(java.base@11.0.11/Reference.java:213)
+
+"Finalizer" #3 daemon prio=8 os_prio=0 cpu=0.46ms elapsed=464.99s tid=0x00007f70c40f5800 nid=0x33c3 in Object.wait()  [0x00007f70ac673000]
+   java.lang.Thread.State: WAITING (on object monitor)
+	at java.lang.Object.wait(java.base@11.0.11/Native Method)
+	- waiting on <0x00000003000fc7b0> (a java.lang.ref.ReferenceQueue$Lock)
+	at java.lang.ref.ReferenceQueue.remove(java.base@11.0.11/ReferenceQueue.java:155)
+	- waiting to re-lock in wait() <0x00000003000fc7b0> (a java.lang.ref.ReferenceQueue$Lock)
+	at java.lang.ref.ReferenceQueue.remove(java.base@11.0.11/ReferenceQueue.java:176)
+	at java.lang.ref.Finalizer$FinalizerThread.run(java.base@11.0.11/Finalizer.java:170)
+
+"Signal Dispatcher" #4 daemon prio=9 os_prio=0 cpu=0.33ms elapsed=464.99s tid=0x00007f70c40fd800 nid=0x33c4 waiting on condition  [0x0000000000000000]
+   java.lang.Thread.State: RUNNABLE
+
+"Service Thread" #5 daemon prio=9 os_prio=0 cpu=0.16ms elapsed=464.99s tid=0x00007f70c40ff800 nid=0x33c5 runnable  [0x0000000000000000]
+   java.lang.Thread.State: RUNNABLE
+
+"C2 CompilerThread0" #6 daemon prio=9 os_prio=0 cpu=6663.01ms elapsed=465.00s tid=0x00007f70c4101800 nid=0x33c6 waiting on condition  [0x0000000000000000]
+   java.lang.Thread.State: RUNNABLE
+   No compile task
+
+"C1 CompilerThread0" #9 daemon prio=9 os_prio=0 cpu=3030.73ms elapsed=465.00s tid=0x00007f70c4103800 nid=0x33c7 waiting on condition  [0x0000000000000000]
+   java.lang.Thread.State: RUNNABLE
+   No compile task
+
+"Sweeper thread" #10 daemon prio=9 os_prio=0 cpu=5.78ms elapsed=465.00s tid=0x00007f70c4105800 nid=0x33c8 runnable  [0x0000000000000000]
+   java.lang.Thread.State: RUNNABLE
+
+"Common-Cleaner" #11 daemon prio=8 os_prio=0 cpu=6.39ms elapsed=464.99s tid=0x00007f70c4141000 nid=0x33ca in Object.wait()  [0x00007f70782f8000]
+   java.lang.Thread.State: TIMED_WAITING (on object monitor)
+	at java.lang.Object.wait(java.base@11.0.11/Native Method)
+	- waiting on <0x000000030003ee88> (a java.lang.ref.ReferenceQueue$Lock)
+	at java.lang.ref.ReferenceQueue.remove(java.base@11.0.11/ReferenceQueue.java:155)
+	- waiting to re-lock in wait() <0x000000030003ee88> (a java.lang.ref.ReferenceQueue$Lock)
+	at jdk.internal.ref.CleanerImpl.run(java.base@11.0.11/CleanerImpl.java:148)
+	at java.lang.Thread.run(java.base@11.0.11/Thread.java:829)
+	at jdk.internal.misc.InnocuousThread.run(java.base@11.0.11/InnocuousThread.java:134)
+
+"Thread-1" #14 prio=5 os_prio=0 cpu=435945.71ms elapsed=457.18s tid=0x00007f70c4c5f800 nid=0x33da runnable  [0x00007f70176fc000]
+   java.lang.Thread.State: RUNNABLE
+	at ox.cads.testing.JITLinUndoTester.solve(JITLinUndoTester.scala:208)
+	at ox.cads.testing.CompetitionSolver.ox$cads$testing$CompetitionSolver$$thread2$1(CompetitionSolver.scala:19)
+	at ox.cads.testing.CompetitionSolver$$anonfun$solve$2.apply$mcV$sp(CompetitionSolver.scala:22)
+	at ox.cads.util.ThreadUtil$$anon$1.run(ThreadUtil.scala:8)
+	at java.lang.Thread.run(java.base@11.0.11/Thread.java:829)
+
+"VM Thread" os_prio=0 cpu=819.84ms elapsed=465.02s tid=0x00007f70c40f0800 nid=0x33c1 runnable  
+
+"GC Thread#0" os_prio=0 cpu=20424.32ms elapsed=465.03s tid=0x00007f70c402e800 nid=0x33bc runnable  
+
+"GC Thread#1" os_prio=0 cpu=20324.89ms elapsed=464.79s tid=0x00007f7064001000 nid=0x33cc runnable  
+
+"GC Thread#2" os_prio=0 cpu=20340.60ms elapsed=462.42s tid=0x00007f7064038800 nid=0x33d4 runnable  
+
+"GC Thread#3" os_prio=0 cpu=20278.22ms elapsed=462.42s tid=0x00007f706403a000 nid=0x33d5 runnable  
+
+"GC Thread#4" os_prio=0 cpu=20315.92ms elapsed=456.84s tid=0x00007f706407b000 nid=0x33dd runnable  
+
+"GC Thread#5" os_prio=0 cpu=20200.91ms elapsed=456.85s tid=0x00007f706407c800 nid=0x33de runnable  
+
+"GC Thread#6" os_prio=0 cpu=20205.09ms elapsed=456.85s tid=0x00007f706407e000 nid=0x33df runnable  
+
+"GC Thread#7" os_prio=0 cpu=20238.74ms elapsed=456.85s tid=0x00007f706407f800 nid=0x33e0 runnable  
+
+"G1 Main Marker" os_prio=0 cpu=2.01ms elapsed=465.04s tid=0x00007f70c407b000 nid=0x33bd runnable  
+
+"G1 Conc#0" os_prio=0 cpu=76.68ms elapsed=465.04s tid=0x00007f70c407c800 nid=0x33be runnable  
+
+"G1 Conc#1" os_prio=0 cpu=82.17ms elapsed=464.38s tid=0x00007f7074001000 nid=0x33cd runnable  
+
+"G1 Refine#0" os_prio=0 cpu=11178.48ms elapsed=465.05s tid=0x00007f70c40ab800 nid=0x33bf runnable  
+
+"G1 Refine#1" os_prio=0 cpu=2252.25ms elapsed=463.76s tid=0x00007f7068004800 nid=0x33cf runnable  
+
+"G1 Refine#2" os_prio=0 cpu=744.08ms elapsed=463.77s tid=0x00007f702c001000 nid=0x33d0 runnable  
+
+"G1 Refine#3" os_prio=0 cpu=314.97ms elapsed=463.77s tid=0x00007f7020001000 nid=0x33d1 runnable  
+
+"G1 Refine#4" os_prio=0 cpu=167.77ms elapsed=462.43s tid=0x00007f7024001000 nid=0x33d6 runnable  
+
+"G1 Refine#5" os_prio=0 cpu=119.02ms elapsed=447.46s tid=0x00007f7010001800 nid=0x33e1 runnable  
+
+"G1 Refine#6" os_prio=0 cpu=50.40ms elapsed=444.64s tid=0x00007f703cd4e800 nid=0x33e2 runnable  
+
+"G1 Refine#7" os_prio=0 cpu=22.42ms elapsed=441.88s tid=0x00007f70280a3000 nid=0x33e3 runnable  
+
+"G1 Young RemSet Sampling" os_prio=0 cpu=877.63ms elapsed=465.06s tid=0x00007f70c40ad800 nid=0x33c0 runnable  
+"VM Periodic Task Thread" os_prio=0 cpu=201.39ms elapsed=465.03s tid=0x00007f70c413e800 nid=0x33c9 waiting on condition  
+
+JNI global refs: 10, weak refs: 0
+
+Heap
+ garbage-first heap   total 20889600K, used 16109279K [0x0000000300000000, 0x0000000800000000)
+  region size 4096K, 2064 young (8454144K), 1 survivors (4096K)
+ Metaspace       used 40724K, capacity 42987K, committed 43776K, reserved 1087488K
+  class space    used 5822K, capacity 6112K, committed 6144K, reserved 1048576K
+
+/usr/bin/scala: line 21: 13242 Killed                  "$@"

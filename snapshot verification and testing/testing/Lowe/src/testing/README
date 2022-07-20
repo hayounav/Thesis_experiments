@@ -1,0 +1,269 @@
+Logging components
+------------------
+
+Event.scala: events used in logging.
+
+TS: timestamping of events, and merging arrays by timestamps.
+
+---- Logging for generic testers.
+
+GenericThreadLog.scala: abstract class for logging by a single thread.
+
+GenericLog: abstract class for logging by several threads
+
+SharedLog: log for use by several threads, based on a shared array; extends
+GenericLog.
+
+TSThreadLog: log for use by a single thread, based on timestamps; extends
+GenericThreadLog.
+
+TSLog: log for use by several threads, based on timestamps; extends
+GenericLog.
+
+---- Logging for queue-oriented testers.
+
+QueueThreadLog: abstract class for log used by a single thread, with
+queue-oriented algorithm.
+
+QueueLog: abstract class for log used by multiple threads, with
+queue-oriented algorithm.
+
+SharedQueueLog: queue-oriented log for use by several threads, based on a
+shared array; extends QueueLog
+
+QueueTSThreadLog: queue-oriented log for use by a single thread, based on
+timestamping; extends QueueThreadLog
+
+QueueTSLog: queue-oriented log for use by several threads, based on
+timestamping; extends QueueLog
+
+---- Logging for generic competition testers.
+
+CompetitionThreadLog: abstract class for log used by a single thread, with
+a generic competition tester.
+
+CompetitionLog: abstract class for log used by multiple threads, with a
+generic competition tester.
+
+SharedCompetitionLog: log for use by several threads within a generic
+competition tester, based on a shared array; extends CompetitionLog.
+
+TSCompetitionThreadLog: log for use by a single thread within a generic
+competition tester, based on timestamping; extends CompetitionLog.
+
+TSCompetitionLog: log for use by several threads within a generic
+competition tester, based on timestamping; extends CompetitionLog.
+
+-- Logging for competition testers involving a queue-oriented tester.
+
+QueueCompetitionThreadLog: abstract class for log used by a single thread,
+with a queue-oriented competition tester.
+
+QueueCompetitionLog: abstract class for log used by multiple threads, with a
+queue-oriented competition tester.
+
+SharedQueueCompetitionLog: log for use by several threads within a
+queue-oriented competition tester, based on a shared array; extends
+QueueCompetitionLog.
+
+TSQueueCompetitionThreadLog: log for use by a single thread within a
+queue-oriented competition tester, based on timestamping; extends
+QueueCompetitionLog.
+
+TSQueueCompetitionLog: log for use by several threads within a queue-oriented
+competition tester, based on timestamping; extends QueueCompetitionLog.
+
+
+Components
+----------
+
+ThreadStates.scala: objects recording the states of threads within a
+Configuration for the linear tester.
+
+StateWrapper.scala: a wrapper round a state, allowing equivalence classes to
+be easily identified; used in the linear and DFS testers. 
+
+Configuration.scala: a configuration for the linear tester, comprising the
+state of the sequential object and the states of threads; used in the linear
+tester.
+
+ConfigSet.scala: a set of configurations, with two implementations; used in
+the linear tester.
+
+UndoConfig.scala: a configuration for use with the JITLinUndoTester.
+
+MyBitMapSet.scala: a bit map, with efficient tests for equality; used in the
+DFS tester.
+
+QLTHistory.scala: a history used by the queue-oriented solver. 
+
+
+Linearizability Solvers
+-----------------------
+
+Solver: the base class of the sequential solvers.
+
+GenericSolver: the base class of the sequential generic solvers. 
+ 
+WGLinearizabilityTester: the Wing & Gong Tree-Search Algorithm.
+
+WGGraph: the Wing & Gong Graph-Searh Algorithm.
+
+JITLinUndoTester: the Just-in-Time Linearization Tree-Search Algorithm. 
+
+DFSGraphJITLinTester: the Just-in-Time Linearization Graph-Search Algorithm. 
+
+BFSJITLinTester: the Just-in-Time Linearization Breadth-First Graph-Search
+Algorithm (not in the paper) (previously known as LinearizabilityTester.scala).
+
+QueueLinSolver: the queue-oriented algorithm.
+
+CompetitionSolver; the competition-parallel composition of two Solvers.
+
+
+Linearizability Testers
+-----------------------
+
+LinearizabilityTester: a linearizability tester based on a generic solver. 
+
+QueueLinTester: a linearizability tester based on the graph-oriented solver.
+
+CompetitionTester: a competition tester based on two generic solvers.
+
+QueueCompetitionTester: a competition tester based on the graph-oriented
+solver and a generic solver.
+
+
+==========================================================
+
+Thoughts on a refactoring.
+
+Logging
+=======
+
+Generic sequential log for a single thread: 
+-------------------------------------------
+
+GenericThreadLog[S, C]
+
+Subclassed by versions using a shared bounded-buffer or timestamp based
+(TSGenericThreadLog).  
+
+Operation:
+
+log[A,B](concOp: C => A, msg: String, seqOp: S => B).
+
+Generic sequential log for multiple threads
+-------------------------------------------
+
+GenericLog[S, C]
+
+Subclassed by versions using a shared bounded-buffer (SharedGenericLog) or
+timestamp based (TSGenericLog).
+
+
+Operations:
+
+apply(t: Int) : GenericThreadLog[S, C].  Gives a log for thread t; returns
+this in the case of the shared bounded-buffer version (or maybe an internal
+GenericThreadLog object for each thread, holding the thread's ID).
+
+def getLog : Array[Event] returns the contents of the log. 
+
+---------
+
+Similar logs for queue-oriented, generic competition and queue-oriented
+competition testers. 
+
+
+Only used by the timestamp-based log.  Part of the system log for other
+implementations. 
+
+Parameters: iters, conObj, mkInvoke, mkReturn
+
+Operation:
+
+log[A,B](t: Int, concOp: C => A, msg: String, seqOp: S => B).
+
+It doesn't seem possible to fit the log for a queue into this format.  Nor the
+log for a competition tester.
+
+Log: 
+----
+
+Parameters: p, iters/invocs, conObj, mkInvoke/mkReturn/similar for queues.
+
+Operations:
+
+apply(t: Int) giving a log for an individual thread; returns this in the case
+of most implementations. 
+
+def getLog : Array[Event] returns the contents of the log. 
+
+Generic log provides the getLog function.  
+
+Subclasses provide slightly different log functions:
+
+- QueueLog: logEnqueue(t: Int, value: A, enqueueOp: C => Unit), 
+  logDequeue(t: Int, dequeueOp: C => Option[A])
+- Log: log[A,B](t: Int, concOp: C => A, msg: String, seqOp: S => B):Unit
+- TSLog: get/apply giving a thread-specific TS Log, which provides operation
+  def log[A,B](t: Int, concOp: C => A, msg: String, seqOp: S => B)
+- CompTesterLog with operation
+  def log[A](t: Int, concOp: C => A, msg: String, 
+	     immutableSeqOp: S => (A,S), undoableSeqOp: US => A) : Unit
+- QueueCompetitionLog with operations
+  def logEnqueue(t: Int, value: A, enqueueOp: C => Unit, 
+		 undoableSeqOp: US => Unit) : Unit
+  def logDequeue(t: Int, dequeueOp: C => Option[A], 
+		 undoableSeqOp: US => Option[A]) : Unit
+- TS-based versions of several of these ... but they could provide the same
+  interface as the bounded-buffer-based versions.
+
+Solving
+-------
+
+Taking a history, and testing for lineariability.
+
+Type parameters: S
+
+Parameters: seqObj, p, (maxSize, verbose).
+
+Operations: 
+
+- solve(events: Array[Event]) : Int
+
+- mkInvoke(Int, String, S => Any) => InvokeEvent[S,Any,Any]
+
+- mkReturn(Int, Any) => ReturnEvent[Any])
+
+Running and combining
+---------------------
+
+Type parameters 
+
+C -- concurrent datatype
+L <: Log -- logs
+S -- sequential datatype
+
+Parameters: 
+mkLog: (p: Int, iters: Int, 
+      mkInvoke: (Int, String, S => Any) => InvokeEvent[S,Any,Any],
+      mkReturn: (Int, Any) => ReturnEvent[Any]) : L, 
+worker : (Int, L) => Unit, 
+p: Int, iters: Int, concObj: C, seqObj: S,
+mkSolver: (seqObj: S, p: Int, maxSize: Int, verbose: Boolean) => Solver
+
+1. Creates solver
+2. Obtains mkInvoke, mkReturn from solver
+3. Creates log
+4. Runs workers
+5. Obtains events from log
+6. Runs solver on log.
+
+Companion object provides various standards, requiring parameters S, C, p,
+iters, worker, seqObj, concObj
+
+But the competition versions will work slightly differently.  So need four
+implementations corresponding to (a) generic sequential; (b) queue-oriented
+sequential; (c) generic competition; (d) queue-oriented sequential.

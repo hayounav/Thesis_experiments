@@ -1,0 +1,67 @@
+﻿/////////////////////////////////////////////////////////////////////
+/// This file contains a CSP implementation of the bounded single-snapshot algorithm
+/// presented by Bowman in 
+/// "Obstruction-free snapshot, obstruction-free consensus, and fetch-and-add modulo k" (2011) 
+///
+/// Inline comments map CSP statements to the psudeo-code statements from the paper.
+///
+/// This implementation is tailored to admit only (0,1)-simple histories
+///
+/// A bug has been artificially planted in this implementation.
+/// The bug occurrs on line 61:
+///   Instead of the loop in the scan operation continuing until X == i,
+///   the loop stops too eagerly, whenrever X != \bottom
+///   This bug was suggested by Bowman in the original text
+/////////////////////////////////////////////////////////////////////
+
+///Number of processes
+#define N <NUM-PROCS>;
+////Data Domain
+#define MAX_V 1;
+/// The Bottom value
+#define BOTTOM -1;
+
+
+// The snapshot
+var A[2]:{0 .. MAX_V};
+// The synchronization variable
+var X:{BOTTOM .. N} = BOTTOM;
+// local copy for scans
+var B[N][2]:{0 .. MAX_V};
+
+
+// UPDATE(j,v)
+RealUpdate(j, v) = startUpdate.j.v -> 
+	// 7. X <- \bottom
+	{X = BOTTOM;} -> 
+	// 8. A[j] <- v
+	{A[j] = v;} -> 
+	endUpdate.j.v -> Skip;
+
+// Focusing only on simple histories enables an optimization in which 
+// redundant commands are omitted from update_k operations, where k != i,j
+// These are called "fake" update operations in this code
+FakeUpdate(i) = startUpdate.i.0 -> {X = BOTTOM;} -> endUpdate.i.0 -> Skip;
+
+// SCAN fro process i
+Scan(i) = startScan.i -> 
+	// 1. do
+	ScanLoop(i);
+
+ScanLoop(i) = 
+	// 2. X <- i
+	{ X = i } -> 
+	// 3. for each k:
+	// 4. B[k] <- A[k]
+	// (recall that in (0,1)-simple histories, there are only two segments of interest)
+	{B[i][0] = A[0];} -> {B[i][1] = A[1];} -> FinishScan(i);
+	
+FinishScan(i) =  
+	// 5. until X == i
+	if (X != BOTTOM) { // BUG!
+		// return B
+		endScan.i.B[i][0].B[i][1] -> Skip
+	} else {ScanLoop(i)};
+
+Setup() = Skip;
+

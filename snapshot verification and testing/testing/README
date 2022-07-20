@@ -1,0 +1,60 @@
+Supporting material for submission #38: Polynomial Verification and Linear Testing of Implementations of the Snapshot Data Structure
+=======================================
+
+This package contains both the raw results of our *testing* experiments, as well as the code needed to reproduce these experiments.
+
+---
+
+Table of Contents
+=================
+1. Package Contents
+2. Code and Execution Instructions
+3. Platform and External Dependencies
+
+
+1. Package contents
+===================
+This package contains 2 folders 6 files and:
+- Results - contains the individual output result files of the test instance executions. Files are named by experiment configuration: W-X-Y-Z.SYSTEM
+	+ W: linearizable or non-linearizable
+	+ X: the number of processes in the history
+	+ Y: the length of the history
+	+ Z: the index of the instance. There are 25 unique instances for each configuration
+	+ SYSTEM: .result-lowe indicates the output of Gavin Lowe's linearizability testing tool (see [Chapter 3](#chapter3)) for the instance; .result-us indicates the output of our method for the instance.
+- Tests - contains the individual test instances for the experiment. Files are named by experiment configuration: W-X-Y-Z, which carry the same meanings as for the Results files.
+- results.csv - contains the tabulation of the experimental data extracted from the files in Results.
+- run.sh - is the main script for generating, running, and tabulating the results (see [Chapter 2](#chapter2)).
+- snap_conditions.pml - the encoding of our automata-based testing method as Spin processes (see [Chapter 3](#chapter3)).
+- SnapTest.scala - the Scala code used to wrap and call Gavin Lowe's linearizability-testing tool (see [Chapter 3](#chapter3)).
+- vm and vm.cpp - the atomic snapshot implementation used to generate the histories for the experiments. The compiled executable is provided alongside the source code for your convenience.
+
+
+2. Code and Execution Instructions
+==================================
+- vm.cpp - This file contains the source code of the atomic snapshot used to generate the histories for the linearizability-testing experiments.
+	+ Compile using g++ 9.3 (or equivalent). No special compiler or linker arguments are needed: `g++ -O2 -o vm vm.cpp`
+- vm - A pre-compiled linux x86-64 executable of vm.cpp, included for convenience. This is a cli program.
+	+ Run from the terminal as normal: `./vm [optional arguments]`
+	+ Takes multiple optional arguments:
+		* -p allows setting the number of processes. For example, `./vm -p 4` instructs the vm to spawn 4 processes for the simulation. Default value is 3.
+		* -f allows setting the name of the output file. For example, `./vm -f foo` instructs the vm to log the history in a file named foo. Default value is out.txt.
+		* -r allows setting the random number seed. For example, `./vm -r 69420` uses 69420 as the random number seed. Default value is 42.
+		* -hl allows setting length of the generated history. For example, `./vm -hl 5000` instructs the vm to simulate a history of length 5000. Default value is 100.
+		* -iv allows to control whether the generated history is linearizable or not. For example, `./vm -iv` will cause the program to attempt to generate a non-linearizable history. This is not guaranteed to succeed, and depends on the random process.
+- run.sh - The primary bash script for managing and running the experiments.
+	+ For instructions on how to run the script, run it with the help flag: `./run.sh -h` or `./run.sh -help`
+	+ The script depends on three external tools: A C compiler, Spin and Gavin Lowe's linearizability-testing tool (See [Chapter 3](#chapter3)).
+		* To set the C compiler, modify the value of the variable `CC` on line 32. Default value is `gcc`.
+		* To set the path to the spin executable, modify the variable `SPIN` on line 30. Default value is `spin`.
+		* To set the path to the compiled classes of Gavin Lowe's linearizability-testing tool, modify the variable `LOWE` on line 31. Default value is `"./LinTesting"`.
+
+
+3. Platform and External Dependencies {#chapter3}
+=====================================
+- 64-bit Ubuntu 20.04.02
+- A C++03-compatible compiler
+- A C99-compatible compiler, and the C standard library headers for Linux
+- The Spin model checker
+- Scala 2.11 (A dependency of Gavin Lowe's tool)
+
+This package includes the sources and compiled class files of Gavin Lowe's linearizability-testing tool, for the convenience of the reviewers. They may not be included in the final distribution of this package. If you wish to download and compile the tool on your own, instructions can be found at <https://www.cs.ox.ac.uk/people/gavin.lowe/LinearizabiltyTesting/>.

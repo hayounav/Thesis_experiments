@@ -1,0 +1,58 @@
+package ox.cads.collection
+
+import scala.util.Random
+import java.util.concurrent.atomic.AtomicReference
+
+/** A partial stack, based on elimination.  Based on Herlihy & Shavit, 
+  * Sections 11.3-5. */
+class EliminationBackoffStack[T](capacity: Int, timeout: Long)
+extends Stack[T]{
+  private val eliminationArray = 
+    Array.fill(capacity)(new LockFreeExchanger[Option[T]])
+
+  // We'll build linked lists from the following type of Nodes
+  private class Node(val value: T){
+    var next: Node = null
+  }
+
+  // Atomic reference to the top of the stack
+  private val top = new AtomicReference[Node](null)
+  
+  /** Push value onto the stack */
+  def push(value: T) = {
+    val node = new Node(value)
+    var done = false
+    do{
+      val oldTop = top.get
+      node.next = oldTop
+      // try to add node to the stack
+      done = top.compareAndSet(oldTop, node) 
+      if(!done){ // now try using the elimination array
+	val slot = Random.nextInt(capacity)
+	eliminationArray(slot).exchange(Some(value), timeout) match{
+	  case Some(None) => done = true
+	  case _ => { } // None or Some(Some(v)); retry
+	}
+      }
+    } while(!done)
+  }
+
+  /** Pop a value from the stack, waiting until a value is obtained. */ 
+  def pop : T = {
+    while(true){
+      val oldTop = top.get
+      if(oldTop != null){
+	val newTop = oldTop.next
+	// try to remove oldTop from list
+	if(top.compareAndSet(oldTop, newTop)) return oldTop.value
+      }
+      // now try using the elimination array
+      val slot = Random.nextInt(capacity)
+      eliminationArray(slot).exchange(None, timeout) match{
+	case Some(Some(v)) => return v
+	case _ => { } // None or Some(None); retry
+      }
+    }
+    sys.error("unreachable")
+  }
+}

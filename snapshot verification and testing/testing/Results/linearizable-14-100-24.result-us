@@ -1,0 +1,64 @@
+
+(Spin Version 6.5.1 -- 6 June 2020)
+	+ Partial Order Reduction
+
+Full statespace search for:
+	never claim         	- (none specified)
+	assertion violations	+
+	acceptance   cycles 	- (not selected)
+	invalid end states	- (disabled by -E flag)
+
+State-vector 80 byte, depth reached 644, errors: 0
+    26863 states, stored
+      698 states, matched
+    27561 transitions (= stored+matched)
+     1842 atomic steps
+hash conflicts:         0 (resolved)
+
+Stats on memory usage (in Megabytes):
+    2.767	equivalent memory usage for states (stored*(State-vector + overhead))
+    1.409	actual memory usage for states (compression: 50.94%)
+         	state-vector as stored = 27 byte + 28 byte overhead
+  128.000	memory used for hash table (-w24)
+    0.534	memory used for DFS stack (-m10000)
+  129.901	total actual memory usage
+
+
+unreached in proctype Main
+	(0 of 201 states)
+unreached in proctype testInterval_i
+	snap_conditions.pml:48, state 68, "-end-"
+	(1 of 68 states)
+unreached in proctype testInterval_j
+	snap_conditions.pml:98, state 68, "-end-"
+	(1 of 68 states)
+unreached in proctype testAdmissiblePair
+	snap_conditions.pml:121, state 28, "(1)"
+	snap_conditions.pml:120, state 29, "(((proc==1)&&(x==1)))"
+	snap_conditions.pml:120, state 29, "else"
+	snap_conditions.pml:126, state 36, "(1)"
+	snap_conditions.pml:125, state 37, "(((proc==0)&&(x==1)))"
+	snap_conditions.pml:125, state 37, "else"
+	snap_conditions.pml:116, state 40, "startScan?proc"
+	snap_conditions.pml:116, state 40, "endScan?proc,x_0,x_1"
+	snap_conditions.pml:116, state 40, "startUpdate?proc,x"
+	snap_conditions.pml:116, state 40, "endUpdate?proc,x"
+	snap_conditions.pml:147, state 69, "assert((x_0>=x_1))"
+	snap_conditions.pml:159, state 89, "-end-"
+	(7 of 89 states)
+unreached in proctype testProperty1
+	snap_conditions.pml:183, state 21, "endScan?proc,x_0,x_1"
+	snap_conditions.pml:187, state 24, "-end-"
+	(2 of 24 states)
+unreached in proctype testProperty2
+	snap_conditions.pml:238, state 51, "-end-"
+	(1 of 51 states)
+unreached in proctype testProperty3
+	(0 of 6 states)
+unreached in proctype listener
+	snap_conditions.pml:257, state 12, "-end-"
+	(1 of 12 states)
+unreached in proctype TEST
+	(0 of 8 states)
+
+pan: elapsed time 0.01 seconds

@@ -1,0 +1,26 @@
+Impl() = Setup(); (ReadWriter(0) ||| ReadWriter(1) ||| (||| pid:{2 .. N-1} @ ReadFakeWriter(pid)));
+ReadFakeWriter(pid) = (FakeUpdate(pid) [] Scan(pid)); ReadFakeWriter(pid);
+ReadWriter(pid) = ((RealUpdate(pid, 0) [] Scan(pid)); ReadWriter(pid)) [] ReadWriter1(pid);
+ReadWriter1(pid) = (RealUpdate(pid, 1) [] Scan(pid)); ReadWriter1(pid);
+
+
+///////////////////////////
+// Snapshot abstract specification
+//////////////////////////
+// Shared registers for the abstract implementation
+var R[2];
+
+// the empty tau is a hack to make sure updates can interleave with scans
+// this construction saves the need for additional process-specific global variables
+ScanAbs(pid) = startScan.pid -> FinishAbs(pid, R[0], R[1]);
+FinishAbs(pid, r0, r1) = tau -> endScan.pid.r0.r1 -> Skip;
+
+FakeUpdateAbs(i) = startUpdate.i.0 -> endUpdate.i.0 -> Skip;
+UpdateAbs(i, v) = startUpdate.i.v -> {R[i] = v;} -> endUpdate.i.v -> Skip;
+
+Snapshot() = ReadWriterAbs(0) ||| ReadWriterAbs(1) ||| (||| pid:{2 .. N-1} @ ReadFakeWriterAbs(pid));
+ReadFakeWriterAbs(pid) = (FakeUpdateAbs(pid) [] ScanAbs(pid)); ReadFakeWriterAbs(pid);
+ReadWriterAbs(pid) = ((UpdateAbs(pid, 0) [] ScanAbs(pid)); ReadWriterAbs(pid)) [] ReadWriter1Abs(pid);
+ReadWriter1Abs(pid) = (UpdateAbs(pid, 1) [] ScanAbs(pid)); ReadWriter1Abs(pid);
+
+#assert Impl() refines Snapshot();

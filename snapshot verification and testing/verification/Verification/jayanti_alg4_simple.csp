@@ -1,0 +1,229 @@
+﻿/////////////////////////////////////////////////////////////////////
+/// This file contains a CSP implementation of the bounded single-snapshot algorithm
+/// presented by Jayanti in 
+/// "An optimal multi-writer snapshot algorithm" (2005) 
+///
+/// Inline comments map CSP statements to the psudeo-code statements from the paper.
+///
+/// This implementation is tailored to admit only (0,1)-simple histories
+/////////////////////////////////////////////////////////////////////
+
+///Number of processes
+#define N <NUM-PROCS>;
+////Data Domain
+#define MAX_V 1;
+/// The Bottom value
+#define BOTTOM -1;
+
+/// LL/SC registers need to keep track of active links to various processes, in order to correctly support the
+/// SC and VL atomic actions.
+/// The easiest way to implement this is to have 1 flag per process indication true/false for valid/invalid links.
+/// This is not efficient, but most straightforward.
+/// The convention followed here is to put these flags as the last N cells in the register structure.
+
+var X[4+N]; // phase; procA; procB; toggle; N link flags
+var A[2];
+var Ap[N][2];
+var Bq[N][2*(1+N)]; // each element is value; N link flags
+var SS[1+2+N]; // toggle; 2 elements; N link flags
+
+/// Local copies of registers probably don't need to store the link values.
+var myX[N][4]; // phase; procA; procB; toggle
+var myB[N]; // value 
+var myToggle[N];
+var mySS[N][1+2]; // N elements
+var myv[N];
+var V[N][2];
+
+// procedure Write(p, i, v)
+RealUpdate(i, v) = startUpdate.i.v -> 
+	// 1. A[i] = v
+	{A[i] = v;} -> 
+	// 2. x = LL(X)
+	{
+		// copy the data to a local variable
+		var idx=0; while(idx < 4) {myX[i][idx] = X[idx]; idx++};
+		// set the link flag for this process
+		X[4+i] = 1;		
+	} ->
+	// 2.a if (x.phase == 2) then
+	if (myX[i][0] == 1) {
+		// 3.a Transfer(i, x.procB)
+		Transfer(i, myX[i][2])
+		// (Adapted to single-writer: the double transfer is not needed in this case.)
+	}; endUpdate.i.v -> Skip;
+
+// Focusing only on simple histories enables an optimization in which 
+// redundant commands are omitted from update_k operations, where k != i,j
+// These are called "fake" update operations in this code
+FakeUpdate(i) = startUpdate.i.0 -> {
+		// copy the data to a local variable
+		var idx=0; while(idx < 4) {myX[i][idx] = X[idx]; idx++};
+		// set the link flag for this process
+		X[4+i] = 1;		
+	} -> endUpdate.i.0 -> Skip;
+
+// procedure Transfer(p, i, v)
+Transfer(i, q) = 
+	// t1. LL(Bq[i])
+	{
+		// copy the data to a local variable
+		myB[i] = Bq[q][(1+N)*i];
+		// set the link flag for this process
+		Bq[q][(1+N)*i+1+i] = 1;
+	} ->
+	// t2. v' = A[i]
+	{myv[i] = A[i]} ->
+	// t3. if (VL(X))
+	if (X[4+i] == 1) {
+		// t4. SC(Bq[i], v')
+		{
+			// Conditionally overwrite the register
+			if (Bq[q][(1+N)*i+1+i] == 1) {
+				// write the new value
+				Bq[q][(1+N)*i] = myv[i];
+				// invalidate all link flags
+				var idx = 0;
+				while (idx < N) {
+					Bq[q][(1+N)*i+1+idx] = 0;
+					idx++;
+				}
+			}
+			
+		} -> Skip
+	} else { Skip };
+
+// procedure Scan(p)
+Scan(pid) = startScan.pid -> 
+	// 4. PushLS(p)
+	PushLS(pid);
+	// 5. PushLS(p)
+	PushLS(pid);
+	// 6. [toggle, ss] = LL(SS)
+	// (recall that in (0,1)-simple histories, there are only two segments of interest)
+	{
+		// copy SS values to local var
+		myToggle[pid] = SS[0];
+		mySS[pid][0] = SS[1+0];
+		mySS[pid][1] = SS[1+1];
+		// set the link flag for this process
+		SS[1+2+pid] = 1;
+	} ->
+	// 7. return ss
+	endScan.pid.mySS[pid][0].mySS[pid][1] -> Skip;
+
+// procedure PushLS(p)
+PushLS(pid) = 
+	// 8. x = LL(X)
+	{
+		// copy the data to a local variable
+		var idx=0; while(idx < 4) { myX[pid][idx] = X[idx]; idx++ };
+		// set the link flag for this process
+		X[4+pid] = 1;
+	} ->
+	// 9. if (x.phase == 1) then ...
+	if (myX[pid][0] == 0) { Phase1(pid) }; 
+	// 14. if (x.phase == 2) then ...
+	if (myX[pid][0] == 1) { Phase2(pid) };
+	// 19. if (x.phase == 3) then ...
+	if (myX[pid][0] == 2) { Phase3(pid) };
+	Skip;
+	
+Phase1(pid) = 
+	// 10. for (i=0 to m-1) Bp[i] = Bottom 
+	ClearBLoop(pid, 0);
+	// 11. x.phase = 2; x.procB = p
+	{myX[pid][0] = 1; myX[pid][2] = pid;} ->
+	// 12. SC(X, x)
+	{
+		// Conditionally overwrite the register
+		if (X[4+pid] == 1) {
+			// write the new value
+			var idx=0; while(idx < 4) { X[idx] = myX[pid][idx]; idx++ };
+			// invalidate all link flags
+			while (idx < 4+N) { X[idx] = 0; idx++; }
+		}
+	} ->
+	// 13. x = LL(X)
+	{
+		// copy the data to a local variable
+		var idx=0; while(idx < 4) { myX[pid][idx] = X[idx]; idx++ };
+		// set the link flag for this process
+		X[4+pid] = 1;
+	} -> Skip;
+	
+Phase2(pid) = 
+	// 15. for (i=0 to m-1) Ap[i] = A[i]
+	CopyALoop(pid, 0);
+	// 16. x.phase = 3; x.procA = p
+	{ myX[pid][0] = 2; myX[pid][1] = pid; } ->
+	// 17. SC(X, x)
+	{
+		// Conditionally overwrite the register
+		if (X[4+pid] == 1) {
+			// write the new value
+			var idx=0; while(idx < 4) { X[idx] = myX[pid][idx]; idx++ };
+			// invalidate all link flags
+			while (idx < 4+N) { X[idx] = 0; idx++; }
+		}
+	} ->
+	// 18. x = LL(X)
+	{
+		// copy the data to a local variable
+		var idx=0; while(idx < 4) { myX[pid][idx] = X[idx]; idx++ };
+		// set the link flag for this process
+		X[4+pid] = 1;
+	} -> Skip;
+	
+Phase3(pid) = 
+	// 20. for (i=0 to m-1) V[i] = A_{x.procA}[i]
+	CopyVLoop(pid, myX[pid][1], 0);
+	// 21. for (i=0 to m-1) do
+	// 22.		b = B_{x.procB}[i]
+	// 23. 		if b != \bottom then V[i] = b
+	ValidateLoop(pid, myX[pid][2], 0);
+	// 24. [toggle, ss] = LL(SS)
+	// (recall that in (0,1)-simple histories, there are only two segments of interest)
+	{
+		// copy SS values to local var
+		myToggle[pid] = SS[0];
+		mySS[pid][0] = SS[1+0];
+		mySS[pid][1] = SS[1+1];
+		// set the link flag for this process
+		SS[1+2+pid] = 1;
+	} ->
+	// 25. if (toggle != x.toggle) /\ VL(X) then
+	if((myToggle[pid] != myX[pid][3]) && (X[4+pid] == 1)) {
+		// 26. SC(SS, [x.toggle, V])
+		{
+			// Conditionally overwrite the register
+			if (SS[1+2+pid] == 1) {
+				// copy the toggle
+				SS[0] = myX[pid][3]; 
+				// write the local view
+				var idx=0; 
+				while (idx < 2) { SS[1+idx] = V[pid][idx]; idx++; }
+				// invalidate all link flags
+				while (idx < 2+N) { SS[1+idx] = 0; idx++; }
+			}
+		} -> Skip
+	};
+	// 27. x.phase = 1; x.toggle = !x.toggle
+	{myX[pid][0] = 0; myX[pid][3] = 1 - myX[pid][3];} -> 
+	// 28. SC(X, x)
+	{
+		// Conditionally overwrite the register
+		if (X[4+pid] == 1) {
+			// write the new value
+			var idx=0; while(idx < 4) { X[idx] = myX[pid][idx]; idx++ };
+			// invalidate all link flags
+			while (idx < 4+N) { X[idx] = 0; idx++; }
+		}
+	} -> Skip;
+
+ClearBLoop(pid, i) =  {Bq[pid][(1+N)*0] = BOTTOM; var idx = 0; while (idx < N) {Bq[pid][(1+N)*i+1+0]=0; idx++;}} -> {Bq[pid][(1+N)*1] = BOTTOM; var idx = 0; while (idx < N) {Bq[pid][(1+N)*i+1+1]=0; idx++;}} -> Skip; // if (i < 2) { {Bq[pid][(1+N)*i] = BOTTOM; var idx = 0; while (idx < N) {Bq[pid][(1+N)*i+1+idx]=0; idx++;} } -> ClearBLoop(pid, i+1)} else { Skip };
+CopyALoop(pid, i) =  {Ap[pid][0] = A[0];} -> {Ap[pid][1] = A[1];} -> Skip; //if (i < 2) { {Ap[pid][i] = A[i];} -> CopyALoop(pid, i+1)} else { Skip };
+CopyVLoop(pid, p, i) =  {V[pid][0] = Ap[p][0];} -> {V[pid][1] = Ap[p][1];} -> Skip; //if (i < 2) { {V[pid][i] = Ap[p][i];} -> CopyVLoop(pid, p, i+1)} else { Skip };
+ValidateLoop(pid, q, i) = if (i < 2) { {myB[pid] = Bq[q][(1+N)*i]} -> if (myB[pid] != BOTTOM) { {V[pid][i] = myB[pid];} -> Skip}; ValidateLoop(pid, q, i+1) } else { Skip };
+
+Setup() = Skip;

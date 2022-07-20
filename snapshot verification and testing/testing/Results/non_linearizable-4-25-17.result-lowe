@@ -1,0 +1,54 @@
+Error found
+0: 3 invokes startScan!3
+1: 2 invokes startScan!2
+2: 3 returns ArraySeq(0, 0, 0, 0)
+3: 3 invokes startScan!3
+4: 0 invokes startUpdate!0,0
+5: 3 returns ArraySeq(0, 0, 0, 0)
+6: 3 invokes startScan!3
+7: 1 invokes startScan!1
+8: 1 returns ArraySeq(0, 0, 0, 0)
+9: 0 returns ()
+10: 2 returns ArraySeq(0, 0, 0, 0)
+11: 0 invokes startScan!0
+12: 1 invokes startUpdate!1,1
+13: 2 invokes startUpdate!2,0
+14: 3 returns ArraySeq(0, 0, 0, 0)
+15: 2 returns ()
+16: 0 returns ArraySeq(0, 1, 0, 0)
+17: 1 returns ()
+18: 1 invokes startUpdate!1,1
+19: 3 invokes startScan!3
+20: 0 invokes startUpdate!0,1
+21: 2 invokes startUpdate!2,0
+22: 0 returns ()
+23: 0 invokes startScan!0
+24: 3 returns ArraySeq(1, 1, 0, 0)
+25: 2 returns ()
+26: 1 returns ()
+27: 1 invokes startUpdate!1,1
+28: 3 invokes startScan!3
+29: 0 returns ArraySeq(0, 0, 0, 0)
+-- Previous event not linearized
+-- Allowed return values: ArraySeq(1, 1, 0, 0)
+30: 2 invokes startUpdate!2,0
+31: 0 invokes startScan!0
+32: 1 returns ()
+33: 0 returns ArraySeq(0, 1, 0, 0)
+34: 1 invokes startScan!1
+35: 2 returns ()
+36: 3 returns ArraySeq(1, 1, 0, 0)
+37: 3 invokes startUpdate!3,0
+38: 2 invokes startUpdate!2,0
+39: 0 invokes startScan!0
+40: 3 returns ()
+41: 3 invokes startScan!3
+42: 1 returns ArraySeq(1, 1, 0, 0)
+43: 1 invokes startUpdate!1,1
+44: 3 returns ArraySeq(0, 0, 0, 0)
+45: 3 invokes startScan!3
+46: 0 returns ArraySeq(1, 1, 0, 0)
+47: 1 returns ()
+48: 2 returns ()
+49: 3 returns ArraySeq(1, 1, 0, 0)
+res: -2	data processing time: 0.2038327	solve time: 0.259381	total time: 0.4632137	Memory used: 204.0

@@ -1,0 +1,28 @@
+#define MAX_OPS <LIMIT-RUN>;
+
+Impl() = Setup(); (ReadWriter(0, 0) ||| ReadWriter(1, 0) ||| (||| pid:{2 .. N-1} @ ReadFakeWriter(pid, 0)));
+ReadFakeWriter(pid, i) = [i < MAX_OPS]((FakeUpdate(pid) [] Scan(pid)); ReadFakeWriter(pid, i+1));
+ReadWriter(pid, i) = [i < MAX_OPS](((RealUpdate(pid, 0) [] Scan(pid)); ReadWriter(pid, i+1)) [] ReadWriter1(pid, i)); // Single-writer: pid == write index
+ReadWriter1(pid, i) = [i < MAX_OPS]((RealUpdate(pid, 1) [] Scan(pid)); ReadWriter1(pid, i+1)); // Single-writer: pid == write index
+
+
+///////////////////////////
+// Snapshot abstract specification
+//////////////////////////
+// Shared registers for the abstract implementation
+var R[2];
+
+// the empty tau is a hack to make sure updates can interleave with scans
+// this construction saves the need for additional process-specific global variables
+ScanAbs(pid) = startScan.pid -> FinishAbs(pid, R[0], R[1]);
+FinishAbs(pid, r0, r1) = tau -> endScan.pid.r0.r1 -> Skip;
+
+FakeUpdateAbs(i) = startUpdate.i.0 -> endUpdate.i.0 -> Skip;
+UpdateAbs(i, v) = startUpdate.i.v -> {R[i] = v;} -> endUpdate.i.v -> Skip;
+
+Snapshot() = ReadWriterAbs(0, 0) ||| ReadWriterAbs(1, 0) ||| (||| pid:{2 .. N-1} @ ReadFakeWriterAbs(pid, 0));
+ReadFakeWriterAbs(pid, i) = [i < MAX_OPS]((FakeUpdateAbs(pid) [] ScanAbs(pid)); ReadFakeWriterAbs(pid, i+1));
+ReadWriterAbs(pid, i) = [i < MAX_OPS](((UpdateAbs(pid, 0) [] ScanAbs(pid)); ReadWriterAbs(pid, i+1)) [] ReadWriter1Abs(pid, i)); // Single-writer: pid == write index
+ReadWriter1Abs(pid, i) = [i < MAX_OPS]((UpdateAbs(pid, 1) [] ScanAbs(pid)); ReadWriter1Abs(pid, i+1)); // Single-writer: pid == write index
+
+#assert Impl() refines Snapshot();

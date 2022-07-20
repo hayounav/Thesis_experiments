@@ -1,0 +1,232 @@
+package ox.cads.testing
+
+import ox.cads.util.Profiler
+
+/** A linearization tester.
+  * 
+  * This is the tester referred to as the ''Wing & Gong Tester'' in the paper 
+  * [[http://www.cs.ox.ac.uk/people/gavin.lowe/LinearizabiltyTesting/ ''Testing for Linearizability'', Gavin Lowe]].  
+  * See that paper for more explanation of the technique. 
+  *
+  * The algorithm is based on ''Testing and Verifying
+  * Concurrent Objects'', by Jeannette Wing and Chun Gong.
+  *
+  * @tparam S the type of sequential spedicifation objects
+  * @tparam C
+  * @param seqObj the sequential specification object
+  * @param concObj the concurrent object
+  * @param p the number of workers
+  * @param worker a function giving the behaviour of a worker; the first 
+  *  parameter of worker represents the worker's identity, and the second 
+  *  the linearization tester.
+  * @param invocs the number of event invocations
+  * @param maxSize the maximum number of configurations to allow
+  * @param verbose should verbose output be given. */
+class WGLinearizabilityTester[S <: scala.collection.mutable.Undoable, C]
+  (seqObj: S, 
+   concObj: C,
+   p: Int, 
+   worker: (Int, WGLinearizabilityTester[S,C]) => Unit,
+   invocs: Int, 
+   maxSize: Long, 
+   verbose: Boolean)
+extends Log[S, C](
+  invocs, concObj,
+  new LLInvokeEvent(_,_,_), new LLReturnEvent(_,_)) 
+with UndoingLinTester[S,C] 
+{
+  // Constructor without maxSize or verbose
+  def this(seqObj: S, concObj: C, p: Int, 
+	   worker: (Int, WGLinearizabilityTester[S,C]) => Unit, 
+	   invocs: Int) =
+    this(seqObj, concObj, p, worker, invocs, -1, false)
+
+  // Constructor without worker or p; intended for use with another class,
+  // such as CompetitionLinearizabilityTester, that runs the workers itself.
+  def this
+    (seqObj: S, concObj: C, invocs: Int, maxSize: Long, verbose: Boolean) = 
+       this(seqObj, concObj, -1, null, invocs, maxSize, verbose)
+  
+  /** Has this been interrupted? */
+  @volatile private var interrupted = false
+
+  /** Interrupt this thread */
+  def interrupt = interrupted = true
+
+  //val theLog = new Log[S, C](invocs, concObj)
+  def log[A](t: Int, op: C => A, msg: String, seqOp: S => A) = 
+    log1(t, op, msg, seqOp)
+
+
+  // ******** The log linked list ********
+  // Start and end of the log linked list
+  // TODO: use a sentinel at the end
+  private val logHeader = new Event with LLNode
+  // private var logLast = logHeader
+
+  /** Build a linked list from the events in es */
+  private def buildList(es: Array[Event]){
+    var logLast = logHeader; var index = 0
+    for(e <- es){ 
+      e match {
+	case ie: InvokeEvent[_,_] => {}
+	case re: ReturnEvent[_] => { re.index = index; index += 1 }
+      }
+      e.prev = logLast; logLast.next = e; logLast = e 
+    }
+  }
+
+  /** Remove inv and ret from the log */
+  private def lift[A](inv: InvokeEvent[A,_], ret: ReturnEvent[A]){
+    inv.prev.next = inv.next; inv.next.prev = inv.prev
+    ret.prev.next = ret.next; if(ret.next != null) ret.next.prev = ret.prev
+  }
+
+  /** Replace inv and ret into the log */
+  private def unlift[A](inv: InvokeEvent[A,_], ret: ReturnEvent[A]){ 
+    assert(ret.prev.next == ret.next); ret.prev.next = ret
+    if(ret.next != null) ret.next.prev = ret
+    assert(inv.prev.next == inv.next); inv.prev.next = inv; inv.next.prev = inv
+  }
+
+  private def printLog(k: Int) = {
+    var i = 0; var n = logHeader.next
+    while(n != null && i<k){ print(n+"; "); n = n.next; i += 1 }
+    println
+  }
+  private def printLog = {
+    var n = logHeader.next
+    while(n != null){ println(n); n = n.next }
+    println
+  }
+
+  // ******** main code ********
+
+  /** Run the linearization tester. 
+    * @return LinTester.Success to indicate the linearization succeeded; 
+    * LinTester.OutOfSteam to indicate that the test gave up; or 
+    * LinTester.Failure to indicate that the linearization failed. */
+  def apply() : Int = {
+    // Run the workers
+    ox.cads.util.ThreadUtil.runIndexedSystem(p, worker(_, this))
+    solve(getLog)
+  }
+
+  /** Run the linearization tester, assuming the log has already been 
+    * generated. 
+    * @return LinTester.Success to indicate the linearization succeeded; 
+    * LinTester.OutOfSteam to indicate that the test gave up; or 
+    * LinTester.Failure to indicate that the linearization failed. */
+  def solve(events : Array[Event]) : Int = {    
+    // Build linked list using the events received from the threads.
+    buildList(events) // (getLog) // (inQueue.getAll)
+    if(verbose) printLog
+
+    // We now try to linearize the history represented by the log.  Each
+    // linearization is formed by picking the first operation to linearize:
+    // the invocation event must be before the first return event, in order to
+    // respect the happens-before relation.  We then seek to linearize the
+    // remaining events.  The following variable represents the next event to
+    // consider.
+    var nextEv = logHeader.next // next event to try 
+    // We use a stack (a) to record which operations have been linearized so
+    // far; and (b) to allow back-tracking.  In particular, each prefix es^<e>
+    // of the stack indicates that we still have to consider the possible
+    // linearizations formed by re-inserting es^<e> into the log, and then
+    // trying to consider linearizing events after e.  The third component 
+    // shows which prefix of return events are linearized.
+    val stack = new scala.collection.mutable.Stack[(InvokeEvent[Any,Any], Int)]()
+    var count = 0L // # events considered so far. 
+    // Events currently linearized
+    val linearized = new MyBitMapSet(invocs) // (index)
+    // The first prefixLinearized events have been linearized 
+    // (but not the next).
+    var prefixLinearized = 0 
+    var maxPrefixLinearized = 0 // max value of prefixLinearized
+    
+    while(logHeader.next != null){
+      // Profiler.count("iter")
+      count += 1
+      if(count == maxSize && maxSize > 0){ 
+	println("Giving up"); return LinTester.OutOfSteam
+      }
+      if(interrupted) return LinTester.Interrupted 
+      nextEv match {
+	case ie @ InvokeEvent(t, msg, op) => {
+	  val ret = ie.ret // return event
+	  // See if the operation can be linearized here
+	  val seqResult = op(seqObj) // result of sequential op
+	  if(ret.compareResult(seqResult)){ 
+	    // store backtrack info; remove from history
+	    stack.push((ie, prefixLinearized)); lift(ie, ret) 
+	    linearized += ret.index // we've linearized ie/ret
+	    // update prefixLinearized/maxPrefixLinearized
+	    while(prefixLinearized < invocs && linearized(prefixLinearized))
+	      prefixLinearized += 1 
+	    maxPrefixLinearized = maxPrefixLinearized max prefixLinearized
+	    // Reset to find next op to linearize
+	    nextEv = logHeader.next
+	    // if(nextEv != null){ // update maxPrefixLinearised
+	    //   val nextIndex = nextEv.asInstanceOf[InvokeEvent[_]].index
+	    //   maxPrefixLinearised = maxPrefixLinearised max nextIndex
+	    // }
+	  }
+	  else{ seqObj.undo; nextEv = nextEv.next }
+	}
+	case ReturnEvent(t, result) => {
+	  // Try backtracking
+	  if(stack.isEmpty){ 
+	    println("Impossible return: "+result) 
+	    debug(maxPrefixLinearized) 
+	    return LinTester.Failure
+	  }
+	  val (undoEv, pl) = stack.pop // events to undo 
+	  // Undo undoEv; re-insert in log
+	  seqObj.undo; unlift(undoEv, undoEv.ret)
+	  prefixLinearized = pl
+	  nextEv = undoEv.next  // Advance to next event
+	}
+      }
+    }
+    return LinTester.Success
+  }
+
+  /** Produce debugging information then exit */
+  private def debug(maxPrefixLinearized: Int) = {
+    var e = logHeader.next; var done = false
+    //var notLinReturn : ReturnEvent[_] = null // the non-linearised return
+    val fw = new java.io.FileWriter("WGerror.txt")
+    def write(st: String) = { println(st); fw.write(st+"\n") }
+
+    // write events until first that hasn't been linearized
+    try{
+      while(!done){
+	write(e.toString)
+	e match{
+	  case re: ReturnEvent[_] => done = re.index == maxPrefixLinearized
+	  case ie: InvokeEvent[_,_] => { 
+	    if(ie.ret.index == maxPrefixLinearized)
+	      write("\t-- Previous event not linearized")
+	  }
+	} // end of match
+	if(!done) e = e.next
+      }
+      write("\t-- Previous event not linearized")
+      val re = e.asInstanceOf[ReturnEvent[Any]]
+      def show(x: Any) = if(x==null) "null" else x.toString
+      write("\t-- Allowed return values: " + re.results.map(show).mkString(", "))
+    }
+    finally{ fw.close }
+  //   while(!done){
+  //     write(e.toString); e = e.next
+  //     e match{
+  // 	case re: ReturnEvent[_] => done = ! re.linearized
+  // 	case _ => {}
+  //     }
+  //   }
+  //   write("Cannot linearize "+e)
+  //   val re = e.asInstanceOf[ReturnEvent[Any]]
+  //   write("Allowed return values: "+re.results.map(_.toString).mkString(", "))
+  //   fw.close; sys.exit
+  }
+}

@@ -1,0 +1,77 @@
+/** A class representing maps from A to B, using sharding and synchronized 
+  * blocks.
+  * @param shards the number of shards.
+  * shards should be coprime with the size of the underlying hash table. 
+  */
+
+package ox.cads.collection
+
+class ShardedMap[A,B](shards: Int) extends Map[A,B]{
+  def this() = this(293)
+
+  /** The individual HashMaps storing the data */
+  private val maps =
+    Array.fill(shards)(scala.collection.mutable.HashMap[A,B]())
+  // this represents the union of the maps(i)
+
+  /** Map to put key a into */
+  @inline private def mapFor(a: A) = maps(a.hashCode % shards)
+
+  // Invariant, for all a -> b in maps(i), mapFor(a) = maps(i)
+
+  /** Add a -> b to the mapping */
+  def put(a: A, b: B) = {
+    val m = mapFor(a); m.synchronized{ m.put(a, b) }
+  }
+
+  /** Find the value a maps to, or return null if it's not in the domain
+    * of the mapping */
+  def apply(a: A) : B = {
+    val m = mapFor(a); m.synchronized{ m.apply(a) }
+  }
+
+  /** Find the value a maps to, or return default if it's not in the domain
+    * of the mapping */
+  def getOrElse(a: A, default: => B) : B = {
+    val m = mapFor(a); m.synchronized{ m.getOrElse(a, default) }
+  }
+
+  /** Return the value a maps to if it is in the mapping; otherwise set it
+    * to map to the result of op and return that value */
+  def getOrElseUpdate(a: A, op: => B) : B = {
+    val m = mapFor(a); m.synchronized{ m.getOrElseUpdate(a, op) }
+  }
+
+  /** Function used to initialise values in getOrElseDefaultInit */
+  private var initFn : A => B = null
+
+  /** Set the function used in getOrElseDefaultInit to be f */
+  def setDefaultInit(f: A => B) = initFn = f
+
+  /** Return the value a maps to if it is in the mapping; otherwise set it
+    * to a default value f(a), where f was passed to the last call to 
+    * setDefaultInit. */
+  def getOrElseDefaultInit(a: A) : B = {
+    val m = mapFor(a)
+    m.synchronized{ 
+      m.get(a) match{
+	case Some(b) => b
+	case None => val b = initFn(a); m.put(a, b); b
+      }
+      // if(m.contains(a)) m(a) else{ val b = initFn(a); m.put(a, b); b }
+    }
+  }
+
+  /** Clear the map
+    * Not done under mutual exclusion. */
+  def clear : Unit = for(i <- 0 until shards) maps(i).clear
+
+  /** Find the value a maps to, or return null if it's not in the domain
+    * of the mapping */
+  def getOrElseNull(a: A) : B = {
+    val m = mapFor(a); 
+    m.synchronized{ if(m.contains(a)) m(a) else null.asInstanceOf[B] }
+  }
+
+
+}

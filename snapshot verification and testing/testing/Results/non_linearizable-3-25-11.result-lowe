@@ -1,0 +1,85 @@
+Error found
+Error found
+1 invokes startUpdate!1,0
+0: 1 invokes startUpdate!1,0
+0 invokes startScan!0
+1: 0 invokes startScan!0
+1 returns ()
+1 invokes startScan!1
+2 invokes startScan!2
+2: 1 returns ()
+3: 1 invokes startScan!1
+1 returns ArraySeq(0, 0, 0)
+1 invokes startUpdate!1,1
+4: 2 invokes startScan!2
+2 returns ArraySeq(0, 0, 0)
+5: 1 returns ArraySeq(0, 0, 0)
+0 returns ArraySeq(0, 0, 0)
+1 returns ()
+2 invokes startUpdate!2,0
+1 invokes startScan!1
+0 invokes startScan!0
+6: 1 invokes startUpdate!1,1
+2 returns ()
+7: 2 returns ArraySeq(0, 0, 0)
+0 returns ArraySeq(0, 1, 0)
+0 invokes startUpdate!0,1
+8: 0 returns ArraySeq(0, 0, 0)
+2 invokes startScan!2
+9: 1 returns ()
+1 returns ArraySeq(0, 1, 0)
+10: 2 invokes startUpdate!2,0
+0 returns ()
+1 invokes startScan!1
+11: 1 invokes startScan!1
+1 returns ArraySeq(1, 1, 0)
+0 invokes startUpdate!0,1
+12: 0 invokes startScan!0
+0 returns ()
+1 invokes startUpdate!1,1
+13: 2 returns ()
+0 invokes startScan!0
+1 returns ()
+1 invokes startUpdate!1,1
+14: 0 returns ArraySeq(0, 1, 0)
+2 returns ArraySeq(0, 0, 0)
+15: 0 invokes startUpdate!0,1
+-- Previous event not linearized
+16: 2 invokes startScan!2
+17: 1 returns ArraySeq(0, 1, 0)
+18: 0 returns ()
+19: 1 invokes startScan!1
+20: 1 returns ArraySeq(1, 1, 0)
+21: 0 invokes startUpdate!0,1
+22: 0 returns ()
+23: 1 invokes startUpdate!1,1
+24: 0 invokes startScan!0
+25: 1 returns ()
+26: 1 invokes startUpdate!1,1
+27: 2 returns ArraySeq(0, 0, 0)
+-- Previous event not linearized
+-- Allowed return values: ArraySeq(1, 1, 0)
+28: 0 returns ArraySeq(1, 0, 0)
+29: 2 invokes startUpdate!2,0
+30: 2 returns ()
+-- Allowed return values: ArraySeq(1, 1, 0)
+31: 0 invokes startUpdate!0,1
+32: 2 invokes startScan!2
+33: 0 returns ()
+34: 0 invokes startUpdate!0,1
+35: 1 returns ()
+36: 2 returns ArraySeq(0, 1, 0)
+37: 0 returns ()
+38: 1 invokes startScan!1
+39: 1 returns ArraySeq(0, 1, 0)
+40: 1 invokes startUpdate!1,1
+41: 2 invokes startUpdate!2,0
+42: 0 invokes startUpdate!0,1
+43: 2 returns ()
+44: 2 invokes startUpdate!2,0
+45: 0 returns ()
+46: 2 returns ()
+47: 2 invokes startUpdate!2,0
+48: 1 returns ()
+49: 2 returns ()
+res: -2	data processing time: 0.1979112	solve time: 0.2828974	total time: 0.4808086	Memory used: 336.0

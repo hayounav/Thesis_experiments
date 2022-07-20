@@ -1,0 +1,81 @@
+
+package ox.cads.collection
+import java.util.concurrent.atomic.AtomicLong
+
+/** A pool, that also detects termination.  If the underlying pool is empty,
+  * and all threads are trying to do a get, then all gets return null.
+  * @param underlying an underlying pool such that a get returns null
+  * when empty
+  * @param p the number of workers */
+class TerminationDetectingPool[T >: Null](underlying: Pool[T], p: Int) 
+extends Pool[T]{
+  private val LogMaxWorkers = 32
+  private val MaxWorkers = 1L << LogMaxWorkers // Maximum number of workers
+  assert(p < MaxWorkers)
+
+  private val state = new AtomicLong(0)
+  // Abstractly, state represents a pair (numAdds, numTrying).  numAdds is the
+  // number of adds that have terminated so far.  numTrying is the number of
+  // workers that have performed an unsuccessful get on underlying since the
+  // last time numAdds was incremented.  This pair is represented by 
+  // numAdds << LogMaxWorkers + numTrying
+
+  // Get the numAdds component of state s
+  private def getNumAdds(s: Long) : Long = s >> LogMaxWorkers
+
+  // get the numTrying component of state s
+  private def getNumTrying(s: Long) = s & (MaxWorkers-1)
+
+  // Given state s, get state corresponding to incrementing numAdds and
+  // setting numTrying to 0.
+  private def incNumAdds(s: Long) : Long = getNumAdds(s) + 1 << LogMaxWorkers
+
+  @volatile private var allDone = false // set to true when all done
+
+  /** Signal to all threads doing a get that they should give up. */
+  def signalDone = allDone = true
+
+  /** Add x to the underlying pool. */
+  def add(x: T) = {
+    underlying.add(x)
+    var myState = state.get
+    while(! state.compareAndSet(myState, incNumAdds(myState)))
+      myState = state.get
+  }
+
+  /** Get a value from the underlying pool.  Return null if the pool is empty
+    * and all threads are trying to do a get. */
+  def get : T = {
+    var myNumAdds = getNumAdds(state.get)
+    var trying = false // have I incremented numTrying for numAdds = myNumAdds?
+    while(true){
+      val result = underlying.get
+      if(result != null) return result
+      else if(allDone) return null
+      else{
+	// Update state to record that my get failed
+	var retry = false
+	do{
+	  val s = state.get; val newNumAdds = getNumAdds(s)
+	  if(myNumAdds != newNumAdds){
+	    // an add overlapped my last get
+	    myNumAdds = newNumAdds; trying = false
+	  }
+	  else if(!trying){
+	    // Need to register myself as trying
+	    if(getNumTrying(s) == p-1){
+	      allDone = true; return null // I'm the last one
+	    }
+	    else if(state.compareAndSet(s, s+1))
+	      trying = true  // have now registered that I'm trying
+	    else retry = true // state changed, so need to retry to update state
+	  } 
+	  else if(allDone) return null 
+	} while(retry)
+      } // end of outer else
+    } // end of while(true)
+    sys.error("unreachable")
+  }
+
+
+}

@@ -1,0 +1,416 @@
+﻿/////////////////////////////////////////////////////////////////////
+/// This file contains a CSP implementation of the bounded single-snapshot algorithm
+/// presented by Riany et al. in 
+/// "Towards a practical snapshot algorithm" (2001) 
+///
+/// Inline comments map CSP statements to the psudeo-code statements from the paper.
+///
+/// This implementation is tailored to admit only (0,1)-simple histories
+///
+/// A bug has been artificially planted in this implementation.
+/// The bug occurs on line 347:
+///   Concurrent scan operations rely on each others help to obtain a correct view
+///   of the shared segments. A process participating in the coordinated collection
+///   (implemented in procedure HelpFill) successfully completes the collection if either
+///   it performed the collection on its own, or if some other process completed the same
+///   collecttion for it.
+///   The bug is an off-by one error in detecting the first case: a process may think
+///   that it completed the colletion alone, but in reality it was interrupted by one more
+///   process.
+/////////////////////////////////////////////////////////////////////
+
+#define N <NUM-PROCS>;
+#define MAX_V 1;
+
+// constants
+#define NULL -1;
+#define EMPTY 0;
+#define advance 0;
+#define fill 1;
+#define FAIL 0;
+#define SUCC 1;
+
+// field accessors
+#define high 0;
+#define low 1;
+#define r_val 0;
+#define r_seq 1;
+#define i_val 0;
+#define i_state 1;
+#define i_links 2;
+#define vs_version 0;
+#define vs_sequence 1;
+#define vs_regs 2;
+#define vs_links 1+1+2;
+#define s_val 0;
+#define s_links 1;
+#define a_val 0;
+#define a_links 1;
+
+/// LL/SC registers need to keep track of active links to various processes, in order to correctly support the
+/// SC and VL atomic actions.
+/// The easiest way to implement this is to have 1 flag per process indicating true/false for valid/invalid links.
+/// This is not efficient, but most straightforward.
+/// The convention followed here is to put these flags as the last N cells in the register structure.
+
+///shared variables
+var A[N][1+N]; // +N to support LL/SC
+var curr_index[2+N]; // +N to support LL/SC
+var curr_seq[1+N]; // +N to support LL/SC
+var memory[2][2][2]; // each memory cell contains a pair of high and low registers, each containing a pair of value and sequence number
+var views[2*N][1+1+2+N]; // each view cell contains a version, a sequence number, 2 values, and N flags for LL/SC
+
+// local variables
+var seq[N];
+var high_r[N][2];
+var low_r[N][2];
+
+var current_view[N];
+var result[N][N];
+var fill_count[N];
+
+var first[N];
+var index[N][2];
+var k[N];
+var helped_view[N];
+
+var help_fill[N];
+
+
+RealUpdate(i, v) = startUpdate.i.v -> 
+	// seq := curr_seq
+	{seq[i] = curr_seq[s_val]} ->
+	// high_r := memory[i].high
+	{high_r[i][r_val] = memory[i][high][r_val]; high_r[i][r_seq] = memory[i][high][r_seq];} ->
+	// if (seq <> high_r.seq)
+	ifa (seq[i] != high_r[i][r_seq]) {
+		// memory[i].low := [val, seq]
+		{memory[i][low][r_val] = high_r[i][r_val]; memory[i][low][r_seq] = high_r[i][r_seq]} -> Skip
+	};
+	// memory[i].high := [val, seq]
+	{memory[i][high][r_val] = v; memory[i][high][r_seq] = seq[i]} ->
+	endUpdate.i.v -> Skip;
+
+// Focusing only on simple histories enables an optimization in which 
+// redundant commands are omitted from update_k operations, where k != i,j
+// These are called "fake" update operations in this code	
+FakeUpdate(i) = startUpdate.i.0 -> endUpdate.i.0 -> Skip;
+
+
+Scan(pid) = startScan.pid -> 
+	// first := True; fill_count := 0
+	{ first[pid] = 1; fill_count[pid] = 0; } ->
+	// forever do
+	ScanLoop(pid);
+	
+EndScan(i) = endScan.i.result[i][0].result[i][1] -> Skip;
+
+ScanLoop(i) = 
+	// if A[i] = Null && !first
+	ifa (A[i][a_val] == NULL && first[i] == 0) {
+		// return views[2*i + current_view].regs;
+		{ 
+			result[i][0] = views[2*i + current_view[i]][vs_regs+0];
+			result[i][1] = views[2*i + current_view[i]][vs_regs+1];
+		} -> EndScan(i)
+	} else {
+		// if A[i] = Null && first
+		if (A[i][a_val] == NULL && first[i] != 0) {
+			// index := curr_index
+			{index[i][i_val] = curr_index[i_val]; index[i][i_state] = curr_index[i_state];} ->
+			// if ((index.value mod n) <> i) or (index.state <> fill)
+			ifa (((index[i][i_val] % N) != i) || (index[i][i_state] != fill)) {
+				// first := False; current_view := 1-current_view;
+				{first[i] = 0; current_view[i] = 1 - current_view[i];} ->
+				// Init(2*i + current_view);
+				Init(2*i + current_view[i]);
+				// A[i] := 2*i + current_view;         {Propose the view}
+				{
+					A[i][a_val] = 2*i + current_view[i];
+					// invalidate all link flags
+					var f = 0; while (f < N) { A[i][a_links+f] = 0; f++; }
+				} -> Skip
+			}
+		};
+		// index := LL(curr_index); k := index.value mod n;
+		{
+			// copy the data to a local variable
+			index[i][i_val] = curr_index[i_val]; index[i][i_state] = curr_index[i_state]; 
+			// set the link flag for this process
+			curr_index[i_links + i] = 1;
+			
+			k[i] = index[i][i_val] % N;
+		} -> 
+		// helped_view := A[k];
+		{helped_view[i] = A[k[i]][a_val];} ->
+		// if (index.state = fill)           {If a collection process is in progress}
+		ifa (index[i][i_state] == fill) {
+			// if (helped_view <> Null)
+			if (helped_view[i] != NULL) {
+				// if (help_fill(helped_view, index) = SUCC and fill_count = 2)
+				HelpFill(helped_view[i], i);
+				ifa ((help_fill[i] == SUCC) && (fill_count[i] == 2)) {
+					// return result
+					EndScan(i)
+				} else { 
+					ScanLoop(i) // Loop forever
+				}
+			} else { // The view has been filled already
+				// SC(curr_index,[index.value,advance])
+				{
+					// Conditionally overwrite the register
+					if (curr_index[i_links + i] == 1) {
+						// write the new value
+						curr_index[i_val] = index[i][i_val]; curr_index[i_state] = advance; 
+						// invalidate all link flags
+						var f = 0;
+						while (f < N) { curr_index[i_links+f] = 0; f++; }
+					}
+				} -> ScanLoop(i) // Loop forever
+			}
+		} else {
+			// if (A[(index.value+1) mod n] <> Null)  {If there is a proposed view in the next entry}
+			if (A[(index[i][i_val] + 1) % N][a_val] != NULL) {
+				// SC(curr_index,[index.value+1,fill]);   {Advance and begin a collection process}
+				{
+					// Conditionally overwrite the register
+					if (curr_index[i_links + i] == 1) {
+						// write the new value
+						curr_index[i_val] = index[i][i_val] + 1; curr_index[i_state] = fill; 
+						// invalidate all link flags
+						var f = 0;
+						while (f < N) { curr_index[i_links+f] = 0; f++; }
+					}
+				} -> Skip
+			} else {
+				// SC(curr_index,[index.value+1,advance]);        {Advance tothe next Entry}
+				{
+					// Conditionally overwrite the register
+					if (curr_index[i_links + i] == 1) {
+						// write the new value
+						curr_index[i_val] = index[i][i_val] + 1; curr_index[i_state] = advance; 
+						// invalidate all link flags
+						var f = 0;
+						while (f < N) { curr_index[i_links+f] = 0; f++; }
+					}
+				} -> Skip
+			}; ScanLoop(i) // Loop forever
+		}
+	};
+
+var version[N];
+var ll_helper[N];
+HelpFill(x, i) = 
+	// version := views[x].version
+	{version[i] = views[x][vs_version]} ->
+	// if (curr_index <> index)      {If the collection process is still active}
+	if ((curr_index[i_val] != index[i][i_val]) || (curr_index[i_state] != index[i][i_state])) {
+		// return FAIL
+		{help_fill[i] = FAIL;} -> Skip
+	} else {
+		// if (LL(views[x].sequence) = Null)
+		{
+			// copy the data to a local variable
+			ll_helper[i] = views[x][vs_sequence];
+			// set the link flag for this process
+			views[x][vs_links + i] = 1;
+		} ->
+		if (ll_helper[i] == NULL) {
+			// if (version <> views[x].version)
+			if (version[i] != views[x][vs_version]) {
+				// return FAIL;
+				{help_fill[i] = FAIL} -> Skip
+			} else {
+				// SC(views[x].sequence,curr_seq+1)
+				{
+					// Conditionally overwrite the register
+					if (views[x][vs_links + i] == 1) {
+						// write the new value
+						views[x][vs_sequence] = curr_seq[s_val] + 1;
+						// invalidate all link flags
+						var f = 0;
+						while (f < N) { views[x][vs_links+f] = 0; f++; }
+					}
+				} -> HelpFill2(x, i)
+			}
+		} else { HelpFill2(x, i) }
+	};
+	
+HelpFill2(x, i) = 
+	// seq = views[x].sequence
+	{seq[i] = views[x][vs_sequence]} ->
+	// if (LL(curr_seq) = seq-1)
+	{
+		// copy the data to a local variable
+		ll_helper[i] = curr_seq[s_val];
+		// set the link flag for this process
+		curr_seq[s_links + i] = 1;
+	} ->
+	if (ll_helper[i] == seq[i] - 1) { 
+		// if (version <> views[x].version)
+		ifa (version[i] != views[x][vs_version]) {
+			// return FAIL
+			{help_fill[i] = FAIL} -> Skip
+		} else {
+			// SC(curr_seq,seq)
+			{
+				// Conditionally overwrite the register
+				if (curr_seq[s_links + i] == 1) {
+					// write the new value
+					curr_seq[s_val] = seq[i];
+					// invalidate all link flags
+					var f = 0;
+					while (f < N) { curr_seq[s_links+f] = 0; f++; }
+				}
+			} -> HelpFillLoop(x, i, 0)
+		}
+	} else {
+		HelpFillLoop(x, i, 0)
+	};
+	
+// for j := 0 to n-1 do      {For each updated shared register follow the single collect method}
+// (recall that in (0,1)-simple histories, there are only two segments of interest)
+HelpFillLoop(x, i, j) = ifa (j < 2) {
+	// high_r := memory[j].high
+	{high_r[i][r_val] = memory[j][high][r_val]; high_r[i][r_seq] = memory[j][high][r_seq];} ->
+	// low_r := memory[j].low
+	{low_r[i][r_val] = memory[j][low][r_val]; low_r[i][r_seq] = memory[j][low][r_seq];} ->
+	// if (LL(views[x].regs[j]) = Null)
+	{
+		// copy the data to a local variable
+		ll_helper[i] = views[x][vs_regs+j];
+		// set the link flag for this process
+		views[x][vs_links + i] = 1; 
+	} -> 
+	if (ll_helper[i] == NULL) {
+		// if (version <> views[x].version)
+		ifa (version[i] != views[x][vs_version]) {
+			// return FAIL
+			{help_fill[i] = FAIL;} -> Skip
+		} else {
+			// if (high_r.seq < views[x].sequence)
+			if (high_r[i][r_seq] < views[x][vs_sequence]) {
+				// SC(views[x].regs[j],high_r.value)
+				{
+					// Conditionally overwrite the register
+					if (views[x][vs_links + i] == 1) {
+						// write the new value
+						views[x][vs_regs+j] = high_r[i][r_val];
+						// invalidate all link flags
+						var f = 0;
+						while (f < N) { views[x][vs_links+f] = 0; f++; }
+					}
+				} -> Skip
+			} else {
+				// SC(views[x].regs[j],low_r.value)
+				{
+					// Conditionally overwrite the register
+					if (views[x][vs_links + i] == 1) {
+						// write the new value
+						views[x][vs_regs+j] = low_r[i][r_val];
+						// invalidate all link flags
+						var f = 0;
+						while (f < N) { views[x][vs_links+f] = 0; f++; }
+					}
+				} -> Skip
+			};  HelpFillLoop(x, i, j+1)
+		}
+	}
+} else { // After loop
+	// if (LL(A[index.value mod n]) = x)
+	{
+		// copy the data to a local variable
+		var c = index[i][i_val] % N;
+		ll_helper[i] = A[c][a_val];
+		// set the link flag for this process
+		A[c][a_links + i] = 1;  
+	} -> 
+	if (ll_helper[i] == x) {
+		// if (curr_index = index)
+		if ((curr_index[i_val] == index[i][i_val]) && (curr_index[i_state] == index[i][i_state])) {
+			//SC(A[index.value mod n],Null)
+			{
+				var c = index[i][i_val] % N;
+				// Conditionally overwrite the register
+				if (A[c][a_links + i] == 1) {
+					// write the new value
+					A[c][a_val] = NULL;
+					// invalidate all link flags
+					var f = 0;
+					while (f < N) { A[c][a_links+f] = 0; f++; }
+				}
+			} -> Skip
+		}
+	};
+	// fill_count := fill_count+1;
+	// if (fill_count < 2) return SUCC
+	ifa (fill_count[i]+1 <= 2) {
+		{fill_count[i]++; help_fill[i] = SUCC;} -> Skip 
+	} else {
+		{fill_count[i]++;} -> 
+		CopyViewLoop(x, i, 0)
+	}
+};
+
+// for  j := 0 to n-1 do       {Copy the shared view registers into private space}
+// (recall that in (0,1)-simple histories, there are only two segments of interest)
+CopyViewLoop(x, i, j) = ifa (j < 2) {
+	// result[j] := views[x].regs[j]
+	{result[i][j] = views[x][vs_regs + j];} -> CopyViewLoop(x, i, j+1)
+} else {
+	// if (views[x].version <> version)
+	ifa (views[x][vs_version] != version[i]) {
+		// return FAIL
+		{help_fill[i] = FAIL} -> Skip
+	} else {
+		// return SUCC
+		{help_fill[i] = SUCC} -> Skip
+	}
+};
+
+
+Init(x) =
+		// views[x].version := views[x].version + 1
+		{views[x][vs_version]++;} ->
+		// views[x].sequence := Null
+		{views[x][vs_sequence] = NULL;} -> 
+		
+		// for (k := 0 to n-1 ) ..
+		InitLoop(x, 0);
+		
+InitLoop(x, j) = if (j < N) {
+		// views[x].regs[k] := Null
+		{
+			views[x][vs_regs+j] = NULL;
+			views[x][vs_links+j] = 0; // clear the LL links
+		} -> 
+		InitLoop(x, j+1)
+	} else { Skip };
+
+// This algorithm requires specific initialization. See the paper for more details
+Setup() = {
+	// for all (k = 0..n-1)
+	var c = 0;
+	while (c < 2) {
+		//  A[k] = Null
+		A[c][a_val] = NULL;
+		// memory[k].high = memory[k].low = [Empty, 0]
+		memory[c][high][r_val] = EMPTY;
+		memory[c][high][r_seq] = 0;
+		memory[c][low][r_val] = EMPTY;
+		memory[c][low][r_seq] = 0;
+		c++;
+	}
+	while (c < N) {
+		//  A[k] = Null
+		A[c][a_val] = NULL;
+		c++;
+	}
+	
+	// curr_index = [0,advance]
+	curr_index[i_val] = 0;
+	curr_index[i_state] = advance;
+	// curr_seq = 0
+	curr_seq[s_val] = 0;
+} -> Skip;
+

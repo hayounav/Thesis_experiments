@@ -1,0 +1,151 @@
+﻿/////////////////////////////////////////////////////////////////////
+/// This file contains a CSP implementation of the bounded single-snapshot algorithm
+/// presented by Attiya and Welch in 
+/// "Distributed computing - fundamentals, simulations, and advanced topics (2nd ed.)" (2004) 
+///  (Algorithm 30, page 227)
+///
+/// Inline comments map CSP statements to the psudeo-code statements from the paper.
+///
+/// A bug has been artificially planted in this implementation.
+/// The bug occurrs on line 45:
+///   tryHS_j should copy and negate the i-th handshake bit of the j-th process.
+///   Here, we "forget" the negation part.
+/////////////////////////////////////////////////////////////////////
+
+///Number of processes
+ #define N <NUM-PROCS>;
+  ////Data Domain
+ #define MAX_V 1;
+
+/// views for scans
+var V[N][N];
+
+/// scanner handshake bits
+var h_i[N][N] : {0 .. 1};
+
+/// updater handshake bits
+var h_j[N][N] : {0 .. 1};
+
+/// local register caches for scanners
+/// each process has a register vector
+/// the A copy only makes use of toggle bit, so save space
+var a[N][N] : {0 .. 1};
+var b[N][N][1+1+N];
+
+/// used to check for differences between A and B in scans
+var shook[N][N] : { 0 .. 2};
+
+/// snapshot
+/// each register is of size 1+1+N: value, toggle, view of the snapshot
+var Segment[N][1+1+N];
+
+// procedure tryHS_i (Algorithm 29)
+tryHS_i(i, j) = { h_i[i][j] = h_j[j][i]; } -> Skip;
+// procedure tryHS_j (Algorithm 29)
+tryHS_j(i, j) = { h_j[i][j] = h_i[j][i]; } -> Skip; // BUG!
+// procedure checkHS_i (Algorithm 29)
+#define checkHS_i(i, j) (h_i[i][j] != h_j[j][i]);
+
+// procedure update_i(d)
+Update(i, v) = startUpdate.i.v -> 
+	// 4: view := scan()
+	IntrenalScan(i);
+	// 5: Segment[i] := (d, view, !Segment[i].toggle)
+	{
+		Segment[i][0] = v; //d
+		Segment[i][1] = 1 - Segment[i][1]; // !Segment[i].toggle
+		var c = 0;
+		while (c < N) { // view
+			Segment[i][1+1+c] = V[i][c];
+			c++;
+		}
+	} -> 
+	// 7: forall j != i do tryHS_i^{j,i}()
+	tryUpdaterHandshake(i, 0);
+	// 8: ack_i
+	endUpdate.i.v -> Skip;
+	
+tryUpdaterHandshake(i, j) = if (j < N) { tryHS_j(i, j); tryUpdaterHandshake(i, j+1) } else { Skip };
+	
+Scan(pid) = 
+	// 1: when scan_i() occurs:
+	startScan.pid -> 
+	// 2: view := scan()
+	IntrenalScan(pid); 
+	// 3: return_i(view)
+	endScan.pid<SCAN-RESPONSE> -> Skip;
+
+// procedure scan()
+IntrenalScan(pid) = 
+// 10: forall j != i do shook[j] := 0
+{
+	var c = 0;
+	while (c < N) {
+		shook[pid][c] = 0;
+		c++;
+	}
+} -> MainScanLoop(pid);
+
+// 11: while true do
+//   The scan procedure repeats the following loop "forever" (see the book for details):
+//	 1. copy the relevant handshake bits from other processes
+//   2. perform a double collect
+//   3. check if any other process "moved" during the double collect
+MainScanLoop(pid) = tryScannerHandshake(pid, 0); CopyAs(pid, 0); CopyBs(pid, 0); CompareAB(pid, 0, false);
+
+// 12: for all j != i do tryHS_i^{i, j}()
+tryScannerHandshake(pid, j) = if (j < N) { tryHS_i(pid, j); tryScannerHandshake(pid, j+1) } else { Skip };
+
+// 13: for all j != i do a[j] := Segment[j]
+CopyAs(pid, c1) = if (c1 < N) { { a[pid][c1] = Segment[c1][1]; } -> CopyAs(pid, c1+1)} else {Skip};
+
+// 13: for all j != i do b[j] := Segment[j]
+CopyBs(pid, c1) = if (c1 < N) {
+	{
+		var c2 = 0;
+		while (c2 < 1+1+N) {
+			b[pid][c1][c2] = Segment[c1][c2];
+			c2++;
+		}
+	} -> CopyBs(pid, c1+1) } else {Skip};
+
+// 15: if, for some j != i ...
+CompareAB(pid, j, interrupted) = if (j < N) {
+		// ... checkHS_i^{i,j}() or (a[j].toggle != b[j].toggle) then
+		if (call(checkHS_i, pid, j) || (a[pid][j] != b[pid][j][1])) {
+			// 16: if shook[j] = 2 then ...
+			if (shook[pid][j] == 2) {
+				// ... return (b[j].view)
+				{
+					var c = 0;
+					while (c < N) {
+						V[pid][c] = Segment[j][2+c];
+						c++;
+					}
+				} -> Skip
+			} else {
+				// 17: else shook[j] := shook[j] + 1
+				{ shook[pid][j]++; } -> 
+				CompareAB(pid, j+1, true)
+			}
+		} else {
+			CompareAB(pid, j+1, false)
+		}
+	} else {
+		if (!interrupted) {
+			// 18: else return (b[0].data, ..., b[n-1].data)
+			{
+				var c = 0;
+				while (c < N) {
+					V[pid][c] = b[pid][c][0];
+					c++;
+				}
+			} -> Skip
+		} else {
+			// end while
+			MainScanLoop(pid)
+		}
+	};
+
+Setup() = Skip;
+

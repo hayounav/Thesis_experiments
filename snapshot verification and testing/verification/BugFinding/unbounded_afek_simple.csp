@@ -1,0 +1,155 @@
+﻿/////////////////////////////////////////////////////////////////////
+/// This file contains a CSP implementation of the bounded single-snapshot algorithm
+/// presented by Afek et al. in 
+/// "Atomic Snapshots of Shared Memory" (1993) 
+///
+/// Inline comments map CSP statements to the psudeo-code statements from the paper.
+///
+/// This implementation is tailored to admit only (0,1)-simple histories
+///
+/// The bug occurs on line 51:
+///   The algorithm relies on an unbounded counter (seq) to coordinated between
+///   concurrent executions of scan and update operations. This is done by the
+///   counter being incremented by each update operation. Here, we "forget" to
+///   increment the counter.
+/////////////////////////////////////////////////////////////////////
+
+///Number of processes
+ #define N <NUM-PROCS>;
+ ///BOTTOM value
+ #define BOTTOM -1;
+ ////Data Domain
+ #define MAX_V 1;
+ 
+/// storage for the output of "internal" scans
+var V[N][2];
+
+/// local register caches for scanners
+/// each process has a register vector
+/// the A copy only makes use of the sequence number, so save space
+var a[N][2];
+var b[N][2][1+1+2];
+
+/// used to check for differences between A and B in scans
+var moved[N][2];
+
+////////////////////////
+/// Shared Registers ///
+////////////////////////
+// Unbounded Sequence number
+var seq = 0;
+/// snapshot
+/// each register is of size 1+1+2: value, sequence number, view of the snapshot
+var SS[N][1+1+2];
+
+// procedure update_i(value)
+Update(i, v) = startUpdate.i.v -> 
+	// 1: s := scan_i;
+	IntrenalScan(i);
+	// 2: r_i := (value, seq_i+1, s);
+	{
+		// BUG! seq was not incremented before being stored
+		SS[i][0] = v; // value
+		SS[i][1] = seq; // seq+1
+		// s
+		SS[i][2+0] = V[i][0];
+		SS[i][2+1] = V[i][1];
+	} -> Skip;
+	endUpdate.i.v -> Skip;
+
+// Focusing only on simple histories enables an optimization in which 
+// redundant commands are omitted from update_k operations, where k != i,j
+// These are called "fake" update operations in this code	
+FakeUpdate(i) = startUpdate.i.0 -> 
+	{
+		seq++;
+	} -> endUpdate.i.0 -> Skip;
+
+// procedure scan_i
+Scan(pid) = startScan.pid -> IntrenalScan(pid); endScan.pid.V[pid][0].V[pid][1] -> Skip;
+
+
+// The actual scanning behavior is seperated from the scan procedure, since update calls scan, 
+// but we don't want update operations to generate scan invokation and response actions
+IntrenalScan(pid) = 
+// 0: for j=1 to n do moved_j := 0 od;
+{
+	var idx = 0;
+	while (idx < 2) {
+		moved[pid][idx] = 0;
+		idx++;
+	}
+} -> MainScanLoop(pid);
+
+// The scan procedure repeats the following loop "forever" (see the paper for details):
+// 1. copy the relevant handshake bits from other processes
+// 2. perform a double collect
+// 3. check if any other process "moved" during the double collect
+MainScanLoop(pid) = CopyAs(pid, 0); CopyBs(pid, 0); CompareAB(pid, 0);
+
+// 1: a := collect
+// (recall that in (0,1)-simple histories, there are only two segments of interest)
+CopyAs(pid, c1) = ifa (c1 < 2) {
+	{
+		a[pid][c1] = SS[c1][1]; // the sequence number is in the second cell of the snapshot
+		
+	} -> CopyAs(pid, c1+1)} else {Skip};
+	
+// 2: b := collect
+// (recall that in (0,1)-simple histories, there are only two segments of interest)
+CopyBs(pid, c1) = ifa (c1 < 2) {
+	{
+		var c2 = 0;
+		while (c2 < 1+1+2) {
+			b[pid][c1][c2] = SS[c1][c2];
+			c2++;
+		}
+	} -> CopyBs(pid, c1+1)} else {Skip};
+
+// 3: if (\forall j \in {1..n}) ...
+// (recall that in (0,1)-simple histories, there are only two segments of interest)
+CompareAB(pid, j) = ifa (j < 2) {
+		if ((a[pid][j] != b[pid][j][1])) {
+			// else somebody moved, so...
+			CountMovement(pid, 0)
+		} else {
+			CompareAB(pid, j+1)
+		}
+	} else { // ... (seq(a_j) = seq(b_j)) then
+		// Nobody Moved
+		// 4: return (value(b_1), ..., value(b_n));
+		{
+			V[pid][0] = b[pid][0][0];
+			V[pid][1] = b[pid][1][0];
+		} -> Skip
+	};
+
+// somebody moved
+// 5: for j=1 to n do
+// (recall that in (0,1)-simple histories, there are only two segments of interest)
+CountMovement(pid, j) = ifa (j < 2) {
+		// 6: if seq(a_j) != seq(b_j) then
+		if (a[pid][j] != b[pid][j][1]) {
+			// 7: if moved_j = 1 then
+			if (moved[pid][j] == 1) {
+				// Pj moved once before
+				{
+					// 8: return (view(b_j));
+					V[pid][0] = b[pid][j][1+1+0];
+					V[pid][1] = b[pid][j][1+1+1];
+				} -> Skip
+			} else {
+				// 9: else moved_j := moved_j + 1;
+				{moved[pid][j]++;} -> CountMovement(pid, j+1)
+			}
+		} else {
+			// od;
+			CountMovement(pid, j+1)
+		}
+	} else {
+		// 10: goto line 1
+		MainScanLoop(pid)
+	};
+
+Setup() = Skip;
+

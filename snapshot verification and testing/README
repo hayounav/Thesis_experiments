@@ -1,0 +1,7 @@
+This package contains both the raw results of our experiments, as well as the code needed to reproduce our experiments.
+
+This package includes two sub-packages:
+* testing: contains the raw results and the code for reproducing the testing experiments
+* verification: contains the raw results and the code for reproducing the verification and bug-finding experiments
+
+See the README files in each package for specifics on dependencies and usage instructions.

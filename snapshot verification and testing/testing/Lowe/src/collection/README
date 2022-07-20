@@ -1,0 +1,77 @@
+Sets using linked lists chapter (Ch 9)
+--------------------------------------
+
+Set.scala: an abstract set trait
+CoarseListSet.scala 
+FineListSet.scala
+OptimisticListSet.scala
+LazyListSet.scala 
+LockFreeListSet.scala 
+
+Queues (Ch 10)
+--------------
+
+Queue.scala: an abstract trait for queues
+BoundedQueue.scala: cf H&S Section 10.3
+UnboundedQueue.scala: cf H&S Section 10.4
+LockFreeQueue.scala: cf H&S Section 10.5
+LockFreeQueueMemoryBuggy.scala: cf H&S Section 10.6; note: suffers from ABA ***
+LockFreeQueueRecycle.scala: cf H&S Section 10.6.
+SynchronousChannel.scala, cf H&S section 10.6.1
+SynchronousDualChannel.scala, cf H&S Section 10.7.
+
+Stacks (Ch 11)
+-------
+
+Stack.scala -- trait
+LockFreeStack.scala -- H&S Section 11.2
+LockFreeExchanger.scala -- H&S Section 11.4.1
+EliminationBackoffStack.scala -- H&S Section 11.4.2
+
+Hash maps (Ch 13)
+-----------------
+
+HashMap.scala
+ShardedMap.scala
+LockFreeReadShardedMap.scala
+LvdPWMap.scala
+LvdPWResizeMap.scala
+RecursiveSplitOrderingMap.scala
+
+Skiplists (Ch 14)
+-----------------
+
+LazySkipList.scala
+LockFreeSkipList.scala
+CollisionResistantLazySkipList.scala -- answer to exercise **
+CollisionResistantLockFreeSkipList.scala -- answer to exercise **
+
+Sets (not in course)
+--------------------
+
+HashSet.scala
+ShardedSet.scala
+LockFreeReadShardedSet.scala
+
+Priority Queues (not in course)
+-------------------------------
+
+PriorityQueue.scala
+TreePriorityQueue.scala
+
+Misc
+----
+
+BoundedBuffer.scala -- used in testing
+GrowableArray.scala
+Pool.scala
+TerminationDetectingPool.scala
+
+Moved to ../Removed
+-------------------
+
+Map.scala ??
+ShardedMapTTASLocks.scala ??
+FlatShardedMap.scala  ??
+FineGrainedHeapPriorityQueue.scala ????
+DeQueue.scala -- a double-ended queue ???
