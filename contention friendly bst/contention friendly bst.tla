@@ -458,8 +458,80 @@ SP_4_7 ==
          /\ z\notin nodes /\ z\in nodes'
          /\ left'[z]=bottom /\ right'[z]=bottom)]_<<right,left,nodes>>
               
+(* Invariant 4.8 *)
+Inv_4_8 == 
+    \A x \in nodes : x \in removed => (bottom \notin {left[x], right[x]} /\ left[x] = right[x])
+    
 
+(* Auxiliary reachability definitions *)
+Nbrs(n, L, R, S)  ==  {m \in S : L[n] = m \/ R[n] = m}
+SetNbrs(X, L, R, S)  ==  UNION {Nbrs(n, L, R, S) : n \in X}
+RECURSIVE RF(_, _, _, _, _)
+RF(B, T, L, R, S)  ==  IF B = {} THEN T ELSE RF(SetNbrs(B, L, R, S) \ T, B \cup T, L, R, S)
+ReachableFrom(X, L, R, S) == RF(SetNbrs(X, L, R, S), {}, L, R, S)
+
+(* Step-property 4.13 *)
+SP_4_13 == 
+    [][
+        \A x \in nodes \ {bottom}: 
+            (x \in ReachableFrom({root}, left, right, nodes) /\ x \notin ReachableFrom({root}, left', right', nodes')) =>
+            /\ nd[System] = x /\ nd'[System] = x
+            /\ \/ pc[System] = "f8" /\ pc'[System] = "f9"
+               \/ pc[System] = "v5" /\ pc'[System] = "v6"
+      ]_<<left,right,nodes>>
+    
+    
+(* Invariant 4.16 *)
+Inv_4_16 == 
+    \A x \in nodes : (x \notin removed /\ x \notin ReachableFrom({root}, left, right, nodes)) => (x = nd[System] /\ pc[System] \in {"f9", "v6", "v7", "v8"})
+    
+(* Lemma 4.29 *)
+Lem_4_29 == \A x \in nodes \ {bottom, root} : x \notin ReachableFrom({x}, left, right, nodes)
+
+
+(* Auxiliary k-reachability definitions *)
+KNbrs(n, L, R, S, K, v)  ==  {m \in S : (v < K[n] /\ L[n] = m) \/ (v > K[n] /\ R[n] = m)}
+KSetNbrs(X, L, R, S, K, v)  ==  UNION {KNbrs(n, L, R, S, K, v) : n \in X}
+RECURSIVE KRF(_, _, _, _, _, _, _)
+KRF(B, T, L, R, S, K, v)  ==  IF B = {} THEN T ELSE KRF(KSetNbrs(B, L, R, S, K, v) \ T, B \cup T, L, R, S, K, v)
+KReachableFrom(X, L, R, S, K, v) == KRF(KSetNbrs(X, L, R, S, K, v), {}, L, R, S, K, v)
+
+(* Step-property 4.30 *)
+SP_4_30 == 
+    [][
+        \A x \in nodes \ {bottom} :
+            \A v \in Keys :
+                (x \in KReachableFrom({root}, left, right, nodes, key, v) /\ x \in ReachableFrom({root}, left', right', nodes')) =>
+                x \in KReachableFrom({root}, left', right', nodes', key', v)
+      ]_<<left,right,nodes,key>>
+      
+(* Step-property 4.32 *)
+SP_4_32 == 
+    [][
+        \A x \in nodes : (x \notin ReachableFrom({root}, left, right, nodes)) => (x \notin ReachableFrom({root}, left', right', nodes'))
+    ]_<<left,right>>
+    
+(* Step-property 4.34 *) 
+SP_4_34 == 
+    [][
+        \A x \in nodes : (x \in removed) => (left[x] = left'[x] /\ right[x] = right'[x])
+    ]_<<left,right>>
+    
+(* Step-property 4.37 *)    
+SP_4_37 == 
+    [][
+        \A x \in nodes, v \in Keys : 
+            LET v_conn == KReachableFrom({root}, left', right', nodes', key', v) \cup {root} IN
+                ( /\ x \notin ReachableFrom({root}, left, right, nodes)
+                  /\ \/ left[x] /= left'[x]
+                     \/ right[x] /= right'[x]) => 
+                (/\ (left[x] = left'[x] => (left'[x] \in v_conn => right'[x] \in v_conn))
+                 /\ (right[x] = right'[x] => (right'[x] \in v_conn => left'[x] \in v_conn)))
+    ]_<<left,right>>
+    
+(* Step-property 4.38 *)    
+SP_4_38 == 
+    [][
+        \A x \in nodes : (x \notin removed /\ x \in removed') => (x \notin ReachableFrom({root}, left, right, nodes))
+    ]_<<left,right,removed>>
 =============================================================================
-\* Modification History
-\* Last modified Sun Jul 24 18:23:55 IDT 2022 by hayounav
-\* Created Thu Sep 02 13:15:57 IDT 2021 by hayounav
