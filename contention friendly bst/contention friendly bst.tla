@@ -1,5 +1,9 @@
 -------------------------------- MODULE foo --------------------------------
-EXTENDS Naturals, TLC, Randomization, FiniteSets
+LOCAL INSTANCE Naturals
+LOCAL INSTANCE TLC
+\*LOCAL INSTANCE Sequences
+\*LOCAL INSTANCE FiniteSets
+
 
 CONSTANTS System, Insert, Delete, Contains, Addresses, Keys, infty, ninfty, NO_LOCK
 
@@ -27,7 +31,7 @@ TypeOK ==
     /\ lft \in {TRUE, FALSE}
     /\ nodes \in SUBSET Addresses
     /\ root \in nodes
-    /\ bottom \in nodes
+    /\ bottom \in nodes 
     /\ key \in [nodes -> Keys \cup {infty, ninfty}]
     /\ key[root] = infty
     /\ key[bottom] = ninfty
@@ -391,7 +395,10 @@ CD_delete_1 == pc[Delete] = "d1" => (key[nd[Delete]] = k[Delete] => nd[Delete] \
 CD_delete_2 == pc[Delete] = "d2" => locked[nd[Delete]] = Delete /\ key[nd[Delete]] = k[Delete]
 CD_delete == CD_delete_1_2 /\ CD_delete_1 /\ CD_delete_2
 
-(* Insert Control-dependant invariants *)
+(* 
+    Insert Control-dependant invariants 
+    Note: Invariant 4.6 of the paper is CD_insert_1 
+*)
 CD_insert_1_3 == pc[Insert] \in insert_lines => nd[Insert] /= bottom
 CD_insert_1 == pc[Insert] = "i1" => (key[nd[Insert]] = k[Insert] => nd[Insert] \in removed)
 CD_insert_2 == pc[Insert] = "i2" => locked[nd[Insert]] = Insert /\ key[nd[Insert]] = k[Insert]
@@ -457,24 +464,25 @@ SP_4_7 ==
          /\ y = bottom /\ x = nd[Insert] /\ x\notin removed
          /\ z\notin nodes /\ z\in nodes'
          /\ left'[z]=bottom /\ right'[z]=bottom)]_<<right,left,nodes>>
-              
+         
+         
 (* Invariant 4.8 *)
 Inv_4_8 == 
     \A x \in nodes : x \in removed => (bottom \notin {left[x], right[x]} /\ left[x] = right[x])
     
 
 (* Auxiliary reachability definitions *)
-Nbrs(n, L, R, S)  ==  {m \in S : L[n] = m \/ R[n] = m}
-SetNbrs(X, L, R, S)  ==  UNION {Nbrs(n, L, R, S) : n \in X}
-RECURSIVE RF(_, _, _, _, _)
-RF(B, T, L, R, S)  ==  IF B = {} THEN T ELSE RF(SetNbrs(B, L, R, S) \ T, B \cup T, L, R, S)
-ReachableFrom(X, L, R, S) == RF(SetNbrs(X, L, R, S), {}, L, R, S)
+Nbrs(n)  ==  {m \in nodes : left[n] = m \/ right[n] = m}
+SetNbrs(X)  ==  UNION {Nbrs(n) : n \in X}
+RECURSIVE RF(_, _)
+RF(B, T)  ==  IF B = {} THEN T ELSE RF(SetNbrs(B) \ T, B \cup T)
+ReachableFrom(X) == RF(SetNbrs(X), {})
 
 (* Step-property 4.13 *)
 SP_4_13 == 
     [][
         \A x \in nodes \ {bottom}: 
-            (x \in ReachableFrom({root}, left, right, nodes) /\ x \notin ReachableFrom({root}, left', right', nodes')) =>
+            (x \in ReachableFrom({root}) /\ x \notin ReachableFrom({root})') =>
             /\ nd[System] = x /\ nd'[System] = x
             /\ \/ pc[System] = "f8" /\ pc'[System] = "f9"
                \/ pc[System] = "v5" /\ pc'[System] = "v6"
@@ -483,46 +491,92 @@ SP_4_13 ==
     
 (* Invariant 4.16 *)
 Inv_4_16 == 
-    \A x \in nodes : (x \notin removed /\ x \notin ReachableFrom({root}, left, right, nodes)) => (x = nd[System] /\ pc[System] \in {"f9", "v6", "v7", "v8"})
+    \A x \in nodes : (x \notin removed /\ x \notin ReachableFrom({root})) => (x = nd[System] /\ pc[System] \in {"f9", "v6", "v7", "v8"})
     
 (* Lemma 4.29 *)
-Lem_4_29 == \A x \in nodes \ {bottom, root} : x \notin ReachableFrom({x}, left, right, nodes)
+Lem_4_29 == \A x \in nodes \ {bottom, root} : x \notin ReachableFrom({x})
 
 
 (* Auxiliary k-reachability definitions *)
-KNbrs(n, L, R, S, K, v)  ==  {m \in S : (v < K[n] /\ L[n] = m) \/ (v > K[n] /\ R[n] = m)}
-KSetNbrs(X, L, R, S, K, v)  ==  UNION {KNbrs(n, L, R, S, K, v) : n \in X}
-RECURSIVE KRF(_, _, _, _, _, _, _)
-KRF(B, T, L, R, S, K, v)  ==  IF B = {} THEN T ELSE KRF(KSetNbrs(B, L, R, S, K, v) \ T, B \cup T, L, R, S, K, v)
-KReachableFrom(X, L, R, S, K, v) == KRF(KSetNbrs(X, L, R, S, K, v), {}, L, R, S, K, v)
+KNbrs(n, v)  ==  {m \in nodes : (v < key[n] /\ left[n] = m) \/ (v > key[n] /\ right[n] = m)}
+KSetNbrs(X, v)  ==  UNION {KNbrs(n, v) : n \in X}
+RECURSIVE KRF(_, _, _)
+KRF(B, T, v)  ==  IF B = {} THEN T ELSE KRF(KSetNbrs(B, v) \ T, B \cup T, v)
+KReachableFrom(X, v) == KRF(KSetNbrs(X, v), {}, v)
 
 (* Step-property 4.30 *)
 SP_4_30 == 
     [][
         \A x \in nodes \ {bottom} :
             \A v \in Keys :
-                (x \in KReachableFrom({root}, left, right, nodes, key, v) /\ x \in ReachableFrom({root}, left', right', nodes')) =>
-                x \in KReachableFrom({root}, left', right', nodes', key', v)
+                (x \in KReachableFrom({root}, v) /\ x \in ReachableFrom({root})') =>
+                x \in KReachableFrom({root}, v)'
       ]_<<left,right,nodes,key>>
       
 (* Step-property 4.32 *)
 SP_4_32 == 
     [][
-        \A x \in nodes : (x \notin ReachableFrom({root}, left, right, nodes)) => (x \notin ReachableFrom({root}, left', right', nodes'))
+        \A x \in nodes : (x \notin ReachableFrom({root})) => (x \notin ReachableFrom({root})')
     ]_<<left,right>>
+
+
+(* Potential k-connectivity *)
+PKC(x, v) == 
+    LET 
+        v_connected == KReachableFrom({root}, v) \cup {root}
+        connected == ReachableFrom({root}) \cup {root}
+        PT1 ==  x \in v_connected
+        PT2 ==  /\ x \notin connected /\ x \notin removed
+                /\ {left[x], right[x]} \cap v_connected /= {}
+                /\ prt \in v_connected
+        PT3 ==  /\ x \notin connected 
+                /\ x \in removed 
+                /\ ReachableFrom({x}) \cap v_connected /= {}   
+    IN
+        PT1 \/ PT2 \/ PT3  
+
+(* Invariant 4.33: Regularity *)
+INV_4_33 == 
+    LET R0 == /\ prt \in KReachableFrom({root}, key[nd[System]]) \cup {root}
+              /\ nd[System] /= prt => 
+                    /\ lft => key[nd[System]] < key[prt]
+                    /\ ~lft => key[nd[System]] > key[prt]
+        R1 == \A p \in ProcSet \ {System} :
+                /\ PKC(nd[p], k[p])
+                /\ nxt[p] /= bottom => PKC(nxt[p], k[p])
+        R2 == \E x \in ReachableFrom({root}) \ {bottom} : 
+                  IF (ReachableFrom({left[x]}) \cup {left[x]}) \cap (ReachableFrom({right[x]}) \cup {right[x]}) /= {} THEN x = nd[System] /\ pc[System] \in {"f7", "f8"} ELSE TRUE
+    IN
+        R0 /\ R1 \*/\ R2
     
 (* Step-property 4.34 *) 
 SP_4_34 == 
     [][
         \A x \in nodes : (x \in removed) => (left[x] = left'[x] /\ right[x] = right'[x])
     ]_<<left,right>>
+        
+(* Step-property 4.35 *) 
+SP_4_35 == 
+    [][
+       \A x \in nodes \ {bottom}, v \in Keys :
+            LET v_connected_next == KReachableFrom({root}, v)' \cup {root} IN 
+                (x \in KReachableFrom({root}, v) /\ x \notin v_connected_next) => 
+                    /\ PKC(x, v)'
+                    /\ v = key[x] => left[x] \in v_connected_next /\ right[x] \in v_connected_next
+    ]_<<left,right>>
+    
+(* Step-property 4.36 *) 
+SP_4_36 == 
+    [][
+        \A x \in nodes \ {root, bottom}, v \in Keys : (x \notin ReachableFrom({root}) /\ PKC(x, v)) => IF PKC(x, v)' THEN TRUE ELSE (PrintT({x, v}) /\ FALSE)
+    ]_<<left,right>>
     
 (* Step-property 4.37 *)    
 SP_4_37 == 
     [][
         \A x \in nodes, v \in Keys : 
-            LET v_conn == KReachableFrom({root}, left', right', nodes', key', v) \cup {root} IN
-                ( /\ x \notin ReachableFrom({root}, left, right, nodes)
+            LET v_conn == KReachableFrom({root}, v)' \cup {root} IN
+                ( /\ x \notin ReachableFrom({root})
                   /\ \/ left[x] /= left'[x]
                      \/ right[x] /= right'[x]) => 
                 (/\ (left[x] = left'[x] => (left'[x] \in v_conn => right'[x] \in v_conn))
@@ -532,6 +586,6 @@ SP_4_37 ==
 (* Step-property 4.38 *)    
 SP_4_38 == 
     [][
-        \A x \in nodes : (x \notin removed /\ x \in removed') => (x \notin ReachableFrom({root}, left, right, nodes))
+        \A x \in nodes : (x \notin removed /\ x \in removed') => (x \notin ReachableFrom({root}))
     ]_<<left,right,removed>>
 =============================================================================
